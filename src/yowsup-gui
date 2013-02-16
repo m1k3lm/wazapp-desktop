@@ -7,6 +7,7 @@ import time
 import datetime
 import base64
 import cgi
+import signal
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 os.sys.path.insert(0, base_dir)
@@ -59,7 +60,7 @@ class GuiMain(QObject):
 
         self.show_message_signal.connect(self.showMessage)
 
-        self._ownJid = "%s@s.whatsapp.net" % getConfig('phone')
+        self._ownJid = '%s@s.whatsapp.net' % getConfig('phone')
 
         connectionManager = YowsupConnectionManager()
         connectionManager.setAutoPong(True)
@@ -72,12 +73,12 @@ class GuiMain(QObject):
 
     @Slot()
     def close(self):
-        self.methodsInterface.call("presence_sendUnavailable")
+        self.methodsInterface.call('presence_sendUnavailable')
 
     def _login(self):
         self.username = getConfig('phone')
         password = base64.b64decode(getConfig('password'))
-        self.methodsInterface.call("auth_login", (self.username, password))
+        self.methodsInterface.call('auth_login', (self.username, password))
 
     @Slot()
     def toggleMainWindow(self):
@@ -86,7 +87,7 @@ class GuiMain(QObject):
     @Slot(dict)
     def checkPresence(self, contacts):
         for jid in contacts.values():
-            self.methodsInterface.call("presence_request", (jid,))
+            self.methodsInterface.call('presence_request', (jid,))
 
     def logMessage(self, timestamp, sender, receiver, message):
         if receiver == self._ownJid:
@@ -95,18 +96,18 @@ class GuiMain(QObject):
             conversationId = receiver
         if type(message) is str:
             message = message.decode('utf8')
-        self._out("%s -> %s: %s" % (self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message), timestamp=timestamp, logId=conversationId)
+        #self._out('%s -> %s: %s' % (self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message), timestamp=timestamp, logId=conversationId)
         self._chatHistory.log(conversationId, timestamp, sender, receiver, message)
         self.show_message_signal.emit(conversationId, timestamp, sender, receiver, message)
 
+    @Slot(str, float, str, str, str)
     def showMessage(self, conversationId, timestamp, sender, receiver, message):
         self._mainWindow.show_message_signal.emit(conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
 
-    def do_send(self, receiver, msg):
-        if not "@" in receiver:
-           receiver = self._contacts.name2jid(receiver)
-        self.methodsInterface.call("message_send", (receiver, msg.encode(sys.stdout.encoding)))
-        self.logMessage(time.time(), self._ownJid, receiver, cgi.escape(msg))
+    @Slot(str, unicode)
+    def do_send(self, receiver, message):
+        self.methodsInterface.call('message_send', (receiver, message.encode('utf8')))
+        self.logMessage(time.time(), self._ownJid, receiver, cgi.escape(message))
 
     def _out(self, message, timestamp=None, logId='system'):
         if timestamp is None:
@@ -116,171 +117,171 @@ class GuiMain(QObject):
         print u'\n' + message
 
     def do_group_invite(self, group, user):
-        self.methodsInterface.call("group_addParticipant", (self._contacts.name2jid(group), self._contacts.name2jid(user)))
+        self.methodsInterface.call('group_addParticipant', (self._contacts.name2jid(group), self._contacts.name2jid(user)))
 
     def do_group_kick(self, group, user):
-        self.methodsInterface.call("group_removeParticipant", (self._contacts.name2jid(group), self._contacts.name2jid(user)))
+        self.methodsInterface.call('group_removeParticipant', (self._contacts.name2jid(group), self._contacts.name2jid(user)))
 
     def do_group_create(self, subject):
-        self.methodsInterface.call("group_create", (subject,))
+        self.methodsInterface.call('group_create', (subject,))
 
     def do_group_destroy(self, group):
-        self.methodsInterface.call("group_end", (self._contacts.name2jid(group),))
+        self.methodsInterface.call('group_end', (self._contacts.name2jid(group),))
 
     def do_group_subject(self, group, subject):
-        self.methodsInterface.call("group_subject", (self._contacts.name2jid(group), subject))
+        self.methodsInterface.call('group_subject', (self._contacts.name2jid(group), subject))
 
     def do_group_members(self, group):
-        self.methodsInterface.call("group_getParticipants", (self._contacts.name2jid(group),))
+        self.methodsInterface.call('group_getParticipants', (self._contacts.name2jid(group),))
 
-    @bind("message_received")
+    @bind('message_received')
     def onMessageReceived(self, messageId, jid, messageContent, timestamp, wantsReceipt, pushName):
         self.logMessage(timestamp, jid, self._ownJid, cgi.escape(messageContent))
         if wantsReceipt:
-            self.methodsInterface.call("message_ack", (jid, messageId))
+            self.methodsInterface.call('message_ack', (jid, messageId))
 
-    @bind("group_messageReceived")
+    @bind('group_messageReceived')
     def onGroupMessageReceived(self, messageId, groupJid, author, messageContent, timestamp, wantsReceipt, pushName):
         self.logMessage(timestamp, author, groupJid, cgi.escape(messageContent))
         if wantsReceipt:
-            self.methodsInterface.call("message_ack", (groupJid, messageId))
+            self.methodsInterface.call('message_ack', (groupJid, messageId))
 
-    @bind("group_gotInfo")
+    @bind('group_gotInfo')
     def onGroupInfo(self, groupJid, owner, subject, subjectOwner, subjectTimestamp, creationTimestamp):
         creationTimestamp = datetime.datetime.fromtimestamp(creationTimestamp).strftime('%d-%m-%Y %H:%M')
         subjectTimestamp = datetime.datetime.fromtimestamp(subjectTimestamp).strftime('%d-%m-%Y %H:%M')
-        self._out("Information on group %s: created by %s at %s, subject '%s' set by %s at %s" % (self._contacts.jid2name(groupJid), self._contacts.jid2name(owner), creationTimestamp, subject, self._contacts.jid2name(subjectOwner), subjectTimestamp), logId=groupJid)
+        self._out('Information on group %s: created by %s at %s, subject "%s" set by %s at %s' % (self._contacts.jid2name(groupJid), self._contacts.jid2name(owner), creationTimestamp, subject, self._contacts.jid2name(subjectOwner), subjectTimestamp), logId=groupJid)
 
-    @bind("group_createSuccess")
+    @bind('group_createSuccess')
     def onGroupCreated(self, jid, groupJid):
-        groupJid = "%s@%s" % (groupJid, jid)
-        self._out("New group: %s" % self._contacts.jid2name(groupJid), logId=groupJid)
+        groupJid = '%s@%s' % (groupJid, jid)
+        self._out('New group: %s' % self._contacts.jid2name(groupJid), logId=groupJid)
 
-    @bind("group_endSuccess")
+    @bind('group_endSuccess')
     def onGroupDestroyed(self, jid):
-        pass #jid contains only "g.us" ????
+        pass #jid contains only 'g.us' ????
 
-    @bind("group_subjectReceived")
+    @bind('group_subjectReceived')
     def onGroupSubjectReceived(self, messageId, groupJid, author, subject, timestamp, wantsReceipt):
         self.logMessage(timestamp, author, groupJid, 'changed group subject to: "%s"' % subject)
         if wantsReceipt:
-            self.methodsInterface.call("subject_ack", (groupJid, messageId))
+            self.methodsInterface.call('subject_ack', (groupJid, messageId))
 
-    @bind("group_gotParticipants")
+    @bind('group_gotParticipants')
     def onGroupGotParticipants(self, groupJid, participants):
         self.logMessage(time.time(), groupJid, groupJid, 'group participants are: "%s"' % participants)
 
 
-    @bind("image_received")
+    @bind('image_received')
     def onImageReceived(self, messageId, jid, timestamp, preview, url, size, receiptRequested):
         self.handleImageReceived(messageId, timestamp, jid, self._ownJid, jid, preview, url, size, receiptRequested)
 
-    @bind("group_imageReceived")
+    @bind('group_imageReceived')
     def onGroupImageReceived(self, messageId, groupJid, timestamp, author, preview, url, size, receiptRequested):
         self.handleImageReceived(messageId, timestamp, author, groupJid, groupJid, preview, url, size, receiptRequested)
 
     def handleImageReceived(self, messageId, timestamp, sender, receiver, ack, preview, url, size, receiptRequested):
         self.logMessage(timestamp, sender, receiver, 'sent an image: %s' % makeHtmlImageLink(preview, url))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (ack, messageId))
+            self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind("video_received")
+    @bind('video_received')
     def onVideoReceived(self, messageId, jid, timestamp, preview, url, size, receiptRequested):
         self.handleVideoReceived(messageId, timestamp, jid, self._ownJid, jid, preview, url, size, receiptRequested)
 
-    @bind("group_videoReceived")
+    @bind('group_videoReceived')
     def onGroupVideoReceived(self, messageId, groupJid, timestamp, author, preview, url, size, receiptRequested):
         self.handleVideoReceived(messageId, timestamp, author, groupJid, groupJid, preview, url, size, receiptRequested)
 
     def handleVideoReceived(self, messageId, timestamp, sender, receiver, ack, preview, url, size, receiptRequested):
         self.logMessage(timestamp, sender, receiver, 'sent a video: %s' % makeHtmlImageLink(preview, url))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (ack, messageId))
+            self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind("audio_received")
+    @bind('audio_received')
     def onAudioReceived(self, messageId, jid, timestamp, url, size, receiptRequested):
         self.handleAudioReceived(messageId, timestamp, jid, self._ownJid, jid, url, size, receiptRequested)
 
-    @bind("group_audioReceived")
+    @bind('group_audioReceived')
     def onGroupAudioReceived(self, messageId, groupJid, timestamp, author, url, size, receiptRequested):
         self.handleAudioReceived(messageId, timestamp, author, groupJid, groupJid, url, size, receiptRequested)
 
     def handleAudioReceived(self, messageId, timestamp, sender, receiver, ack, url, size, receiptRequested):
         self.logMessage(timestamp, sender, receiver, 'sent an audio recording: %s' % url)
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (ack, messageId))
+            self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind("location_received")
+    @bind('location_received')
     def onLocationReceived(self, messageId, jid, timestamp, name, preview, latitude, longitude, receiptRequested):
         self.handleLocationReceived(messageId, timestamp, jid, self._ownJid, jid, name, preview, latitude, longitude, receiptRequested)
 
-    @bind("group_locationReceived")
+    @bind('group_locationReceived')
     def onGroupLocationReceived(self, messageId, groupJid, timestamp, author, name, preview, latitude, longitude, receiptRequested):
         self.handleLocationReceived(messageId, timestamp, author, groupJid, groupJid, name, preview, latitude, longitude, receiptRequested)
 
     def handleLocationReceived(self, messageId, timestamp, sender, receiver, ack, name, preview, latitude, longitude, receiptRequested):
         self.logMessage(timestamp, sender, receiver, 'sent a location: "%s" (lat: %f, long: %f)' % (name, latitude, longitude))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (ack, messageId))
+            self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind("vcard_received")
+    @bind('vcard_received')
     def onVCardReceived(self, messageId, jid, timestamp, name, data, receiptRequested):
         self.handleVCardReceived(messageId, timestamp, jid, self._ownJid, jid, name, data, receiptRequested)
 
-    @bind("group_vcardReceived")
+    @bind('group_vcardReceived')
     def onGroupVCardReceived(self, messageId, groupJid, timestamp, author, name, data, receiptRequested):
         self.handleVCardReceived(messageId, timestamp, author, groupJid, groupJid, name, data, receiptRequested)
 
     def handleVCardReceived(self, messageId, timestamp, sender, receiver, ack, name, data, receiptRequested):
         self.logMessage(timestamp, sender, receiver, 'sent a business card: "%s"\n%s' % (name, data))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (ack, messageId))
+            self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind("notification_groupParticipantAdded")
+    @bind('notification_groupParticipantAdded')
     def onGroupParticipantAdded(self, groupJid, jid, author, timestamp, messageId, receiptRequested):
         self.logMessage(timestamp, author, groupJid, 'added group member: "%s"' % (jid))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (groupJid, messageId))
+            self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind("notification_groupParticipantRemoved")
+    @bind('notification_groupParticipantRemoved')
     def onGroupParticipantRemoved(self, groupJid, jid, author, timestamp, messageId, receiptRequested):
         self.logMessage(timestamp, author, groupJid, 'removed group member: "%s"' % (jid))
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (groupJid, messageId))
+            self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind("notification_contactProfilePictureUpdated")
+    @bind('notification_contactProfilePictureUpdated')
     def onContactProfilePictureUpdated(self, jid, timestamp, messageId, receiptRequested):
-        self._out("%s updated his contact picture" % self._contacts.jid2name(jid), timestamp, logId=jid)
+        self._out('%s updated his contact picture' % self._contacts.jid2name(jid), timestamp, logId=jid)
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (jid, messageId))
+            self.methodsInterface.call('notification_ack', (jid, messageId))
 
-    @bind("notification_groupPictureUpdated")
+    @bind('notification_groupPictureUpdated')
     def onGroupPictureUpdated(self, groupJid, author, timestamp, messageId, receiptRequested):
-        self._out("%s updated the picture for group %s" % (self._contacts.jid2name(author), self._contacts.jid2name(groupJid)), timestamp, logId=groupJid)
+        self._out('%s updated the picture for group %s' % (self._contacts.jid2name(author), self._contacts.jid2name(groupJid)), timestamp, logId=groupJid)
         if receiptRequested:
-            self.methodsInterface.call("notification_ack", (groupJid, messageId))
+            self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind("auth_success")
+    @bind('auth_success')
     def onAuthSuccess(self, username):
-        self._out("Logged in as %s" % username)
+        self._out('Logged in as %s' % username)
         self.status_changed_signal.emit(True, False)
-        self.methodsInterface.call("ready")
-        self.methodsInterface.call("presence_sendAvailable")
+        self.methodsInterface.call('ready')
+        self.methodsInterface.call('presence_sendAvailable')
         self.checkPresence(self._contacts.getContacts())
 
-    @bind("auth_fail")
+    @bind('auth_fail')
     def onAuthFailed(self, username, err):
-        self._out("Auth Failed!")
+        self._out('Auth Failed!')
         self.status_changed_signal.emit(False, False)
 
-    @bind("disconnected")
+    @bind('disconnected')
     def onDisconnected(self, reason):
-        self._out("Disconnected because %s" % reason)
+        self._out('Disconnected because %s' % reason)
         self.status_changed_signal.emit(False, False)
         time.sleep(1)
         try:
@@ -288,30 +289,37 @@ class GuiMain(QObject):
         except:
             pass
 
-    @bind("presence_available")
+    @bind('presence_available')
     def onPresenceAvailable(self, jid):
-        #self._out("%s is now available" % self._contacts.jid2name(jid))
+        #self._out('%s is now available' % self._contacts.jid2name(jid))
         self.contact_status_changed_signal.emit(jid, True, time.time())
 
-    @bind("presence_unavailable")
+    @bind('presence_unavailable')
     def onPresenceUnavailable(self, jid):
-        #self._out("%s is now unavailable" % self._contacts.jid2name(jid))
+        #self._out('%s is now unavailable' % self._contacts.jid2name(jid))
         self.contact_status_changed_signal.emit(jid, False, None)
 
-    @bind("presence_updated")
+    @bind('presence_updated')
     def onPresenceUpdated(self, jid, lastseen):
-        #self._out("%s was last seen %s seconds ago" % (self._contacts.jid2name(jid), lastseen), logId=jid)
+        #self._out('%s was last seen %s seconds ago' % (self._contacts.jid2name(jid), lastseen), logId=jid)
         self.contact_status_changed_signal.emit(jid, None, time.time() - lastseen)
 
 
 def main():
     app = QApplication(sys.argv)
+
+    # ctrl-c: exit Qt main loop and allow additional python code to run afterwards
+    signal.signal(signal.SIGINT, lambda *args: app.exit(0))
+    # force python interpreter to run every 500ms to process keyboard interrupt
+    app.startTimer(500)
+    app.timerEvent = lambda event: None
+
     gui = GuiMain()
     gui.show()
     return app.exec_()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     if not isConfigured():
         configure()
     try:
