@@ -11,7 +11,7 @@ from ContactsWidget import ContactsWidget
 class MainWindow(QMainWindow):
     add_contact_signal = Signal(str, str)
     show_message_signal = Signal(str, float, str, str, str)
-    send_message_signal = Signal(str, str)
+    send_message_signal = Signal(str, unicode)
 
     def __init__(self, contacts, chatHistory):
         super(MainWindow, self).__init__()

@@ -20,7 +20,7 @@ def url2link(text):
 
 
 class ChatWidget(QWidget):
-    send_message_signal = Signal(str, str)
+    send_message_signal = Signal(str, unicode)
     scroll_to_bottom_signal = Signal()
     show_message_signal = Signal(str, float, str, str, str)
 

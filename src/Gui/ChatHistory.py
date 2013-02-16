@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import codecs
 from helpers import LOG_FILE_TEMPLATE
 
 class ChatHistory(object):
@@ -12,7 +13,7 @@ class ChatHistory(object):
         if conversationId not in self._conversations:
             messageList = []
             try:
-                with open(LOG_FILE_TEMPLATE % conversationId, 'r') as logfile:
+                with codecs.open(LOG_FILE_TEMPLATE % conversationId, 'r', 'utf8') as logfile:
                     for line in logfile:
                         timestamp, sender, receiver, message = line.rstrip('\n').split(';', 3)
                         timestamp = float(timestamp)
@@ -24,7 +25,6 @@ class ChatHistory(object):
 
     def log(self, conversationId, timestamp, sender, receiver, message):
         self.get(conversationId).append((timestamp, sender, receiver, message))
-        logfile = open(LOG_FILE_TEMPLATE % conversationId, 'a')
+        logfile = codecs.open(LOG_FILE_TEMPLATE % conversationId, 'a', 'utf8')
         logfile.write('%s;%s;%s;%s\n' % (timestamp, sender, receiver, message))
         logfile.close()
-
