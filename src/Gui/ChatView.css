@@ -1,0 +1,26 @@
+body {
+    font-family: sans-serif;
+    font-size: 11pt;
+}
+p {
+    margin: 0 0 0 0;
+}
+.date {
+    text-align: center;
+    color: #000000;
+    font-weight: bold;
+}
+.time {
+    color: #888888;
+}
+.name {
+    color: #0000dd;
+    font-weight: bold;
+}
+.myname {
+    color: #0000bb;
+    font-weight: bold;
+}
+.message {
+    color: #000000;
+}
