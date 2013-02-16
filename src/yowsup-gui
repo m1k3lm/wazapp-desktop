@@ -16,9 +16,10 @@ os.sys.path.insert(0, yowsup_dir)
 import sip
 sip.setapi('QString', 2)
 from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject
-from PyQt4.QtGui import QApplication
+from PyQt4.QtGui import QApplication, QSystemTrayIcon, QIcon, QMenu
 
 from Gui.MainWindow import MainWindow
+from Gui.SystemTrayIcon import SystemTrayIcon
 from Gui.Contacts import Contacts
 from Gui.ChatHistory import ChatHistory
 from Gui.helpers import makeHtmlImageLink, isConfigured, configure, getConfig
@@ -36,6 +37,7 @@ def bind(event):
 class GuiMain(QObject):
     show_message_signal = Signal(str, float, str, str, str)
     contact_status_changed_signal = Signal(str, object, object)
+    status_changed_signal = Signal(bool, bool)
 
     def __init__(self):
         super(GuiMain, self).__init__()
@@ -48,6 +50,11 @@ class GuiMain(QObject):
         self._mainWindow = MainWindow(self._contacts, self._chatHistory)
         self.show = self._mainWindow.show
         self._mainWindow.send_message_signal.connect(self.do_send)
+
+        self._systrayIcon = SystemTrayIcon()
+        self._systrayIcon.quit_signal.connect(self._mainWindow.close)
+        self._systrayIcon.toggle_main_window_signal.connect(self.toggleMainWindow)
+        self.status_changed_signal.connect(self._systrayIcon.statusChanged)
 
         self.show_message_signal.connect(self.showMessage)
 
@@ -69,6 +76,10 @@ class GuiMain(QObject):
         self.username = getConfig('phone')
         password = base64.b64decode(getConfig('password'))
         self.methodsInterface.call("auth_login", (self.username, password))
+
+    @Slot()
+    def toggleMainWindow(self):
+        self._mainWindow.setVisible(not self._mainWindow.isVisible())
 
     @Slot(dict)
     def checkPresence(self, contacts):
@@ -255,6 +266,7 @@ class GuiMain(QObject):
     @bind("auth_success")
     def onAuthSuccess(self, username):
         self._out("Logged in as %s" % username)
+        self.status_changed_signal.emit(True, False)
         self.methodsInterface.call("ready")
         self.methodsInterface.call("presence_sendAvailable")
         self.checkPresence(self._contacts.getContacts())
@@ -262,10 +274,12 @@ class GuiMain(QObject):
     @bind("auth_fail")
     def onAuthFailed(self, username, err):
         self._out("Auth Failed!")
+        self.status_changed_signal.emit(False, False)
 
     @bind("disconnected")
     def onDisconnected(self, reason):
-        self._out("Disconnected because %s" %reason)
+        self._out("Disconnected because %s" % reason)
+        self.status_changed_signal.emit(False, False)
         time.sleep(1)
         try:
             self._login()
@@ -274,18 +288,18 @@ class GuiMain(QObject):
 
     @bind("presence_available")
     def onPresenceAvailable(self, jid):
-        self._out("%s is now available" % self._contacts.jid2name(jid))
+        #self._out("%s is now available" % self._contacts.jid2name(jid))
         self.contact_status_changed_signal.emit(jid, True, time.time())
 
     @bind("presence_unavailable")
     def onPresenceUnavailable(self, jid):
-        self._out("%s is now unavailable" % self._contacts.jid2name(jid))
+        #self._out("%s is now unavailable" % self._contacts.jid2name(jid))
         self.contact_status_changed_signal.emit(jid, False, None)
 
     @bind("presence_updated")
     def onPresenceUpdated(self, jid, lastseen):
-        self._out("%s was last seen %s seconds ago" % (self._contacts.jid2name(jid), lastseen), logId=jid)
-        self.contact_status_changed_signal.emit(jid, None, lastseen)
+        #self._out("%s was last seen %s seconds ago" % (self._contacts.jid2name(jid), lastseen), logId=jid)
+        self.contact_status_changed_signal.emit(jid, None, time.time() - lastseen)
 
 
 def main():

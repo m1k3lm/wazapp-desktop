@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self._contacts = contacts
         self._chatHistory = chatHistory
+        self._quit = False
         self._chatWidgets = {}
 
         self.setWindowTitle('Yowsup Gui')
@@ -42,13 +43,22 @@ class MainWindow(QMainWindow):
         self.restoreGeometry(self._settings.value('mainWindow/geometry').toByteArray());
         self.restoreState(self._settings.value('mainWindow/windowState').toByteArray());
 
+    @Slot()
+    def close(self):
+        self._quit = True
+        super(MainWindow, self).close()
+
     def closeEvent(self, event):
-        self._settings.beginGroup('mainWindow')
-        self._settings.setValue('geometry', self.saveGeometry())
-        self._settings.setValue('windowState', self.saveState())
-        self._settings.setValue('openConversations', self._chatWidgets.keys())
-        self._settings.endGroup()
-        super(MainWindow, self).closeEvent(event)
+        if self._quit:
+            self._settings.beginGroup('mainWindow')
+            self._settings.setValue('geometry', self.saveGeometry())
+            self._settings.setValue('windowState', self.saveState())
+            self._settings.setValue('openConversations', self._chatWidgets.keys())
+            self._settings.endGroup()
+            event.accept()
+        else:
+            self.hide()
+            event.ignore()
 
     @Slot(str, float, str, str, str)
     def showMessage(self, conversationId, timestamp, sender, receiver, message):
