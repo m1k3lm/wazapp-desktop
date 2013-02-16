@@ -15,7 +15,7 @@ os.sys.path.insert(0, yowsup_dir)
 
 import sip
 sip.setapi('QString', 2)
-from PyQt4.QtCore import pyqtSignal as Signal, QObject
+from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject
 from PyQt4.QtGui import QApplication
 
 from Gui.MainWindow import MainWindow
@@ -35,11 +35,16 @@ def bind(event):
 
 class GuiMain(QObject):
     show_message_signal = Signal(str, float, str, str, str)
+    contact_status_changed_signal = Signal(str, object, object)
 
     def __init__(self):
         super(GuiMain, self).__init__()
         self._contacts = Contacts()
+        self._contacts.contacts_updated_signal.connect(self.checkPresence)
+        self.contact_status_changed_signal.connect(self._contacts.contactStatusChanged)
+
         self._chatHistory = ChatHistory()
+
         self._mainWindow = MainWindow(self._contacts, self._chatHistory)
         self.show = self._mainWindow.show
         self._mainWindow.send_message_signal.connect(self.do_send)
@@ -64,6 +69,11 @@ class GuiMain(QObject):
         self.username = getConfig('phone')
         password = base64.b64decode(getConfig('password'))
         self.methodsInterface.call("auth_login", (self.username, password))
+
+    @Slot(dict)
+    def checkPresence(self, contacts):
+        for jid in contacts.values():
+            self.methodsInterface.call("presence_request", (jid,))
 
     def logMessage(self, timestamp, sender, receiver, message):
         if receiver == self._ownJid:
@@ -109,9 +119,6 @@ class GuiMain(QObject):
 
     def do_group_members(self, group):
         self.methodsInterface.call("group_getParticipants", (self._contacts.name2jid(group),))
-
-    def do_status(self, user):
-        self.methodsInterface.call("presence_request", (self._contacts.name2jid(user),))
 
     @bind("message_received")
     def onMessageReceived(self, messageId, jid, messageContent, timestamp, wantsReceipt, pushName):
@@ -250,6 +257,7 @@ class GuiMain(QObject):
         self._out("Logged in as %s" % username)
         self.methodsInterface.call("ready")
         self.methodsInterface.call("presence_sendAvailable")
+        self.checkPresence(self._contacts.getContacts())
 
     @bind("auth_fail")
     def onAuthFailed(self, username, err):
@@ -267,14 +275,17 @@ class GuiMain(QObject):
     @bind("presence_available")
     def onPresenceAvailable(self, jid):
         self._out("%s is now available" % self._contacts.jid2name(jid))
+        self.contact_status_changed_signal.emit(jid, True, time.time())
 
     @bind("presence_unavailable")
     def onPresenceUnavailable(self, jid):
         self._out("%s is now unavailable" % self._contacts.jid2name(jid))
+        self.contact_status_changed_signal.emit(jid, False, None)
 
     @bind("presence_updated")
     def onPresenceUpdated(self, jid, lastseen):
         self._out("%s was last seen %s seconds ago" % (self._contacts.jid2name(jid), lastseen), logId=jid)
+        self.contact_status_changed_signal.emit(jid, None, lastseen)
 
 
 def main():

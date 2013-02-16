@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
 
         self._contactsWidget.contactsUpdated(self._contacts.getContacts())
         self._contacts.contacts_updated_signal.connect(self._contactsWidget.contactsUpdated)
+        self._contacts.contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
 
         self._settings = QSettings('yowsup', 'gui')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():

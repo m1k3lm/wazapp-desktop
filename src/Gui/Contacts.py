@@ -11,10 +11,13 @@ from Yowsup.Contacts.contacts import WAContactsSyncRequest
 
 class Contacts(QObject):
     contacts_updated_signal = Signal(dict)
+    contact_status_changed_signal = Signal(str, dict)
 
     def __init__(self):
         super(Contacts, self).__init__()
+        self._contactStatus = {}
         self._loadAliases()
+        self.contacts_updated_signal.emit(self.getContacts())
 
     def _loadAliases(self):
         self.aliases = {}
@@ -44,6 +47,16 @@ class Contacts(QObject):
 
     def getContacts(self):
         return dict([(name, self.name2jid(name)) for name in self.aliases.keys()])
+
+    @Slot(str, object, object)
+    def contactStatusChanged(self, conversationId, available, lastSeen):
+        status = self._contactStatus.get(conversationId, {'available': False, 'lastSeen': 0})
+        if available is not None:
+            status['available'] = available
+        if lastSeen is not None:
+            status['lastSeen'] = lastSeen
+        self._contactStatus[conversationId] = status
+        self.contact_status_changed_signal.emit(conversationId, status)
 
     @Slot(str, str)
     def importGoogleContacts(self, googleUsername, googlePassword):
