@@ -10,6 +10,8 @@ import cgi
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 os.sys.path.insert(0, base_dir)
+yowsup_dir = os.path.abspath(os.path.join(base_dir, '..', '..', 'yowsup', 'src'))
+os.sys.path.insert(0, yowsup_dir)
 
 import sip
 sip.setapi('QString', 2)

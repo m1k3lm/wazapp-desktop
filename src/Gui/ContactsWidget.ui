@@ -6,17 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>171</width>
+    <width>138</width>
     <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Contacts</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout">
-   <property name="spacing">
-    <number>0</number>
-   </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
    <property name="margin">
     <number>0</number>
    </property>
@@ -36,6 +33,16 @@
      </property>
      <property name="sortingEnabled">
       <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="importGoogleContactsButton">
+     <property name="toolTip">
+      <string>download contacts from your google contacts account</string>
+     </property>
+     <property name="text">
+      <string>Import Google</string>
      </property>
     </widget>
    </item>

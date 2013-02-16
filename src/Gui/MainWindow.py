@@ -19,19 +19,21 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self._contacts = contacts
         self._chatHistory = chatHistory
-
         self._chatWidgets = {}
-        self.setWindowTitle('WhatsApp')
+
+        self.setWindowTitle('Yowsup Gui')
         self._chatWidgetDockArea = Qt.LeftDockWidgetArea
         self.setTabPosition(self._chatWidgetDockArea, QTabWidget.West)
-        self._contactsWidget = ContactsWidget()
         self.show_message_signal.connect(self.showMessage)
+
+        self._contactsWidget = ContactsWidget()
+        self.setCentralWidget(self._contactsWidget)
         self.add_contact_signal.connect(self._contactsWidget.addContact)
         self._contactsWidget.start_chat_signal.connect(self.getChatWidget)
-        self.setCentralWidget(self._contactsWidget)
+        self._contactsWidget.import_google_conctacts_signal.connect(self._contacts.importGoogleContacts)
 
-        for name in self._contacts.aliases:
-            self.add_contact_signal.emit(name, self._contacts.name2jid(name))
+        self._contactsWidget.contactsUpdated(self._contacts.getContacts())
+        self._contacts.contacts_updated_signal.connect(self._contactsWidget.contactsUpdated)
 
         self._settings = QSettings('yowsup', 'gui')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():

@@ -4,11 +4,14 @@
 import os
 import base64
 
+from PyQt4.QtCore import QObject, pyqtSlot as Slot, pyqtSignal as Signal
 from helpers import CONTACTS_FILE, getConfig, readObjectFromFile, writeObjectToFile
 
 from Yowsup.Contacts.contacts import WAContactsSyncRequest
 
-class Contacts(object):
+class Contacts(QObject):
+    contacts_updated_signal = Signal(dict)
+
     def __init__(self):
         super(Contacts, self).__init__()
         self._loadAliases()
@@ -39,10 +42,14 @@ class Contacts(object):
             name = self.aliasesRev[name]
         return name
 
-    def importGoogleContacts(self, email, password):
+    def getContacts(self):
+        return dict([(name, self.name2jid(name)) for name in self.aliases.keys()])
+
+    @Slot(str, str)
+    def importGoogleContacts(self, googleUsername, googlePassword):
         import gdata.contacts.client
         gd_client = gdata.contacts.client.ContactsClient(source='GoogleInc-ContactsPythonSample-1')
-        gd_client.ClientLogin(email, password, gd_client.source)
+        gd_client.ClientLogin(googleUsername, googlePassword, gd_client.source)
 
         query = gdata.contacts.client.ContactsQuery()
         query.max_results = 10000
@@ -55,11 +62,11 @@ class Contacts(object):
 
         print 'importGoogleContacts(): got %d contacts with phone numbers from google' % (len(contacts))
 
-        username = str(getConfig('phone'))
-        password = base64.b64decode(getConfig('password'))
-        wsync = WAContactsSyncRequest(username, password, contacts.keys())
-        results = wsync.send()
-        print 'importGoogleContacts(): WA sync got %d results' % (len(results.get('c', [])))
+        waUsername = str(getConfig('phone'))
+        waPassword = base64.b64decode(getConfig('password'))
+        waContactsSync = WAContactsSyncRequest(waUsername, waPassword, contacts.keys())
+        results = waContactsSync.send()
+        print 'importGoogleContacts(): WA sync matched %d of your google contacts' % (len(results.get('c', [])))
 
         for entry in results.get('c', []):
             hasWhatsApp = bool(entry['w'])
@@ -70,3 +77,5 @@ class Contacts(object):
                 self.aliasesRev[number] = name
 
         self._saveAliases()
+
+        self.contacts_updated_signal.emit(self.getContacts())
