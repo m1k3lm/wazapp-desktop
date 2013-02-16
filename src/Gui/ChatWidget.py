@@ -6,8 +6,6 @@ import re
 import datetime
 import webbrowser
 
-import sip
-sip.setapi('QString', 2)
 from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal
 from PyQt4.QtGui import QWidget
 from PyQt4.QtWebKit import QWebPage
@@ -15,8 +13,6 @@ from PyQt4.uic import loadUi
 
 url_pattern1 = re.compile(r"(^|[\n ])(([\w]+?://[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
 url_pattern2 = re.compile(r"(^|[\n ])(((www|ftp)\.[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
-
-
 def url2link(text):
     text = url_pattern1.sub(r'\1<a href="\2" target="_blank">\2</a>', text)
     text = url_pattern2.sub(r'\1<a href="http:/\2" target="_blank">\2</a>', text)

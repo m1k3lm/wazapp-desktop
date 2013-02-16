@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sip
-sip.setapi('QString', 2)
 from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QSettings
 from PyQt4.QtGui import QMainWindow, QDockWidget, QTabWidget
 

@@ -16,7 +16,7 @@ os.sys.path.insert(0, yowsup_dir)
 import sip
 sip.setapi('QString', 2)
 from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject
-from PyQt4.QtGui import QApplication, QSystemTrayIcon, QIcon, QMenu
+from PyQt4.QtGui import QApplication
 
 from Gui.MainWindow import MainWindow
 from Gui.SystemTrayIcon import SystemTrayIcon
@@ -52,6 +52,7 @@ class GuiMain(QObject):
         self._mainWindow.send_message_signal.connect(self.do_send)
 
         self._systrayIcon = SystemTrayIcon()
+        self._systrayIcon.quit_signal.connect(self.close)
         self._systrayIcon.quit_signal.connect(self._mainWindow.close)
         self._systrayIcon.toggle_main_window_signal.connect(self.toggleMainWindow)
         self.status_changed_signal.connect(self._systrayIcon.statusChanged)
@@ -69,6 +70,7 @@ class GuiMain(QObject):
             self.signalsInterface.registerListener(event, func.__get__(self))
         self._login()
 
+    @Slot()
     def close(self):
         self.methodsInterface.call("presence_sendUnavailable")
 
