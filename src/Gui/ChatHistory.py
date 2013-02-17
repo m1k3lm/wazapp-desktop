@@ -24,6 +24,7 @@ class ChatHistory(object):
         return self._conversations[conversationId]
 
     def log(self, conversationId, timestamp, sender, receiver, message):
+        message = u'<br>'.join(message.split('\n'))
         self.get(conversationId).append((timestamp, sender, receiver, message))
         logfile = codecs.open(LOG_FILE_TEMPLATE % conversationId, 'a', 'utf8')
         logfile.write('%s;%s;%s;%s\n' % (timestamp, sender, receiver, message))
