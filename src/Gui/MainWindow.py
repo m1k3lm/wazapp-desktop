@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QSettings
-from PyQt4.QtGui import QMainWindow, QDockWidget, QTabWidget
+from PyQt4.QtGui import QMainWindow, QTabWidget
 
 from ChatWidget import ChatWidget
 from ContactsWidget import ContactsWidget
@@ -12,6 +12,7 @@ class MainWindow(QMainWindow):
     add_contact_signal = Signal(str, str)
     show_message_signal = Signal(str, float, str, str, str)
     send_message_signal = Signal(str, unicode)
+    has_unread_message_signal = Signal(bool)
 
     def __init__(self, contacts, chatHistory):
         super(MainWindow, self).__init__()
@@ -19,8 +20,10 @@ class MainWindow(QMainWindow):
         self._chatHistory = chatHistory
         self._quit = False
         self._chatWidgets = {}
+        self._unreadMessages = set()
 
-        self.setWindowTitle('Yowsup Gui')
+        self._windowTitle = 'Yowsup Gui'
+        self.setWindowTitle(self._windowTitle)
         self._chatWidgetDockArea = Qt.LeftDockWidgetArea
         self.setTabPosition(self._chatWidgetDockArea, QTabWidget.West)
         self.show_message_signal.connect(self.showMessage)
@@ -62,14 +65,24 @@ class MainWindow(QMainWindow):
     def showMessage(self, conversationId, timestamp, sender, receiver, message):
         self.getChatWidget(conversationId).showMessage(conversationId, timestamp, sender, receiver, message)
 
+    @Slot(str, bool)
+    def unreadMessage(self, conversationId, unread):
+        if unread:
+            self._unreadMessages.add(conversationId)
+        else:
+            self._unreadMessages.discard(conversationId)
+        if len(self._unreadMessages) > 0:
+            self.setWindowTitle('*' + self._windowTitle)
+            self.has_unread_message_signal.emit(True)
+        else:
+            self.setWindowTitle(self._windowTitle)
+            self.has_unread_message_signal.emit(False)
+
     def getChatWidget(self, conversationId):
         if conversationId not in self._chatWidgets:
-            widget = ChatWidget(conversationId=conversationId)
-            dockWidget = QDockWidget()
+            dockWidget = ChatWidget(self._contacts.jid2name(conversationId), conversationId, self._chatHistory, self._contacts)
             dockWidget.setObjectName(conversationId)
-            dockWidget.setWindowTitle(self._contacts.jid2name(conversationId))
             dockWidget.setAllowedAreas(self._chatWidgetDockArea)
-            dockWidget.setWidget(widget)
 
             for other in self._chatWidgets.values():
                 # add new dockWidget tabified on top of the other non-floating dockWidgets
@@ -81,16 +94,12 @@ class MainWindow(QMainWindow):
                 self.addDockWidget(self._chatWidgetDockArea, dockWidget)
 
             self._chatWidgets[conversationId] = dockWidget
-            widget.send_message_signal.connect(self.send_message_signal)
-
-            # show last messages
-            for line in self._chatHistory.get(conversationId)[-5:]:
-                timestamp, sender, receiver, message = line
-                widget.show_message_signal.emit(conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
+            dockWidget.send_message_signal.connect(self.send_message_signal)
+            dockWidget.has_unread_message_signal.connect(self.unreadMessage)
 
         # make sure dockWidget is visible and on top of others
         dockWidget = self._chatWidgets[conversationId]
-        dockWidget.widget().messageText.setFocus()
+        dockWidget.messageText.setFocus()
         dockWidget.show()
         dockWidget.raise_()
-        return dockWidget.widget()
+        return dockWidget

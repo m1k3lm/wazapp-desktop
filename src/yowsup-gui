@@ -47,10 +47,13 @@ class GuiMain(QObject):
         self.contact_status_changed_signal.connect(self._contacts.contactStatusChanged)
 
         self._chatHistory = ChatHistory()
+        self._hasUnreadMessage = False
+        self._isOnline = False
 
         self._mainWindow = MainWindow(self._contacts, self._chatHistory)
         self.show = self._mainWindow.show
         self._mainWindow.send_message_signal.connect(self.do_send)
+        self._mainWindow.has_unread_message_signal.connect(self.unreadMessage)
 
         self._systrayIcon = SystemTrayIcon()
         self._systrayIcon.quit_signal.connect(self.close)
@@ -79,6 +82,15 @@ class GuiMain(QObject):
         self.username = getConfig('phone')
         password = base64.b64decode(getConfig('password'))
         self.methodsInterface.call('auth_login', (self.username, password))
+
+    @Slot()
+    def unreadMessage(self, unread):
+        self._hasUnreadMessage = unread
+        self.status_changed_signal.emit(self._isOnline, self._hasUnreadMessage)
+
+    def setOnline(self, online):
+        self._isOnline = online
+        self.status_changed_signal.emit(self._isOnline, self._hasUnreadMessage)
 
     @Slot()
     def toggleMainWindow(self):
@@ -269,7 +281,7 @@ class GuiMain(QObject):
     @bind('auth_success')
     def onAuthSuccess(self, username):
         self._out('Logged in as %s' % username)
-        self.status_changed_signal.emit(True, False)
+        self.setOnline(True)
         self.methodsInterface.call('ready')
         self.methodsInterface.call('presence_sendAvailable')
         self.checkPresence(self._contacts.getContacts())
@@ -277,12 +289,12 @@ class GuiMain(QObject):
     @bind('auth_fail')
     def onAuthFailed(self, username, err):
         self._out('Auth Failed!')
-        self.status_changed_signal.emit(False, False)
+        self.setOnline(False)
 
     @bind('disconnected')
     def onDisconnected(self, reason):
         self._out('Disconnected because %s' % reason)
-        self.status_changed_signal.emit(False, False)
+        self.setOnline(False)
         time.sleep(1)
         try:
             self._login()
