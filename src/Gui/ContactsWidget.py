@@ -8,6 +8,22 @@ from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal
 from PyQt4.QtGui import QWidget, QListWidgetItem, QLineEdit, QInputDialog, QIcon
 from PyQt4.uic import loadUi
 
+class ListWidgetItem(QListWidgetItem):
+
+    def __lt__(self, otherItem):
+        return self._sortingValue.lower() < otherItem._sortingValue.lower()
+
+    def setOnline(self, online=True):
+        if online:
+            self.setIcon(QIcon.fromTheme('user-available'))
+            self._sortingValue = ' ' + self.text()
+        else:
+            self.setIcon(QIcon.fromTheme('user-offline'))
+            self._sortingValue = self.text()
+
+    def setOffline(self):
+        self.setOnline(False)
+
 class ContactsWidget(QWidget):
     start_chat_signal = Signal(str)
     import_google_conctacts_signal = Signal(str, str)
@@ -28,22 +44,20 @@ class ContactsWidget(QWidget):
 
     @Slot(str, str)
     def addContact(self, name, conversationId):
-        item = QListWidgetItem(name)
+        item = ListWidgetItem(name)
         item._conversationId = conversationId
+        item.setOffline()
         self._items[conversationId] = item
         self.contactList.addItem(item)
 
     @Slot(str, dict)
     def contactStatusChanged(self, conversationId, status):
         item = self._items[conversationId]
-        if status['available']:
-            item.setIcon(QIcon.fromTheme('user-available'))
-        else:
-            item.setIcon(QIcon.fromTheme('user-offline'))
+        item.setOnline(status['available'])
         formattedDate = datetime.datetime.fromtimestamp(status['lastSeen']).strftime('%d-%m-%Y %H:%M:%S')
         item.setToolTip('Available: %s (last seen %s)' % (status['available'], formattedDate))
 
-    @Slot(QListWidgetItem)
+    @Slot(ListWidgetItem)
     def on_contactList_itemDoubleClicked(self, item):
         self.start_chat_signal.emit(item._conversationId)
 
