@@ -47,6 +47,7 @@ class ContactsWidget(QWidget):
         item = ListWidgetItem(name)
         item._conversationId = conversationId
         item.setOffline()
+        item.setToolTip('no information available')
         self._items[conversationId] = item
         self.contactList.addItem(item)
 
@@ -57,7 +58,7 @@ class ContactsWidget(QWidget):
         formattedDate = datetime.datetime.fromtimestamp(status['lastSeen']).strftime('%d-%m-%Y %H:%M:%S')
         item.setToolTip('Available: %s (last seen %s)' % (status['available'], formattedDate))
 
-    @Slot(ListWidgetItem)
+    @Slot(QListWidgetItem)
     def on_contactList_itemDoubleClicked(self, item):
         self.start_chat_signal.emit(item._conversationId)
 
