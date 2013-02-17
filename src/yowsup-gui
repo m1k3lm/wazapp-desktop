@@ -83,7 +83,7 @@ class GuiMain(QObject):
         password = base64.b64decode(getConfig('password'))
         self.methodsInterface.call('auth_login', (self.username, password))
 
-    @Slot()
+    @Slot(bool)
     def unreadMessage(self, unread):
         self._hasUnreadMessage = unread
         self.status_changed_signal.emit(self._isOnline, self._hasUnreadMessage)

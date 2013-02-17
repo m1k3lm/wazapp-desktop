@@ -10,7 +10,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def __init__(self):
         super(SystemTrayIcon, self).__init__()
-        self.setIcon(QIcon.fromTheme('user-offline'))
+        self.setIcon(QIcon.fromTheme('tray-offline'))
         menu = QMenu()
         menu.addAction('Show/Hide').triggered.connect(self.toggle_main_window_signal)
         menu.addAction('Quit').triggered.connect(self.quit_signal)
