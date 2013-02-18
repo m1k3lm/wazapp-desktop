@@ -39,6 +39,8 @@ class ChatWidget(QDockWidget):
         self._filePath = os.path.dirname(os.path.realpath(__file__))
         ui_file = os.path.join(self._filePath, 'ChatWidget.ui')
         loadUi(ui_file, self)
+
+        self.visibilityChanged.connect(self.on_visibilityChanged)
         self.chatView.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.__on_messageText_keyPressEvent = self.messageText.keyPressEvent
         self.messageText.keyPressEvent = self.on_messageText_keyPressEvent
@@ -49,6 +51,11 @@ class ChatWidget(QDockWidget):
         self.has_unread_message_signal.connect(self.unreadMessage)
 
         self.showHistoryNumMessages(3)
+
+    def on_visibilityChanged(self, visible):
+        if visible:
+            self.has_unread_message_signal.emit(self._conversationId, False)
+            self.messageText.setFocus(Qt.OtherFocusReason)
 
     def clearChatView(self):
         self._lastSender = ''
@@ -94,9 +101,6 @@ class ChatWidget(QDockWidget):
         #print 'on_chatView_linkClicked():', url.toString()
         webbrowser.open(url.toString())
 
-    def focusInEvent(self, event):
-        self.has_unread_message_signal.emit(self._conversationId, False)
-
     @Slot()
     def on_scrollToBottom(self):
         self.chatView.page().mainFrame().setScrollBarValue(Qt.Vertical, self.chatView.page().mainFrame().scrollBarMaximum(Qt.Vertical))
@@ -137,5 +141,5 @@ class ChatWidget(QDockWidget):
             self._bodyElement.appendInside(message)
             self.scroll_to_bottom_signal.emit()
 
-            if not self.hasFocus() and not self.isActiveWindow():
+            if not (self.isVisible() and self.isActiveWindow()):
                 self.has_unread_message_signal.emit(self._conversationId, True)
