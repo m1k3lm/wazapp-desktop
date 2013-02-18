@@ -4,10 +4,11 @@
 import os
 import re
 import datetime
+import time
 import webbrowser
 
-from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal
-from PyQt4.QtGui import QDockWidget
+from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint
+from PyQt4.QtGui import QDockWidget, QMenu, QIcon
 from PyQt4.QtWebKit import QWebPage
 from PyQt4.uic import loadUi
 
@@ -34,11 +35,13 @@ class ChatWidget(QDockWidget):
         self._chatHistory = chatHistory
         self._contacts = contacts
 
-        self.setWindowTitle(self._windowTitle)
-
         self._filePath = os.path.dirname(os.path.realpath(__file__))
         ui_file = os.path.join(self._filePath, 'ChatWidget.ui')
         loadUi(ui_file, self)
+
+        self.historyButton.setIcon(QIcon.fromTheme('clock'))
+
+        self.setWindowTitle(self._windowTitle)
 
         self.visibilityChanged.connect(self.on_visibilityChanged)
         self.chatView.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
@@ -50,12 +53,53 @@ class ChatWidget(QDockWidget):
         self.show_history_num_messages_signal.connect(self.showHistoryNumMessages)
         self.has_unread_message_signal.connect(self.unreadMessage)
 
-        self.showHistoryNumMessages(3)
+        self.showHistorySince(datetime.date.today(), minNumMessage=3)
 
     def on_visibilityChanged(self, visible):
         if visible:
             self.has_unread_message_signal.emit(self._conversationId, False)
             self.messageText.setFocus(Qt.OtherFocusReason)
+
+    @Slot()
+    def on_historyButton_pressed(self):
+        historyMenu = QMenu()
+        results = {}
+        results[historyMenu.addAction('Today')] = datetime.date.today()
+        results[historyMenu.addAction('Last 24 Hours')] = datetime.datetime.now() - datetime.timedelta(1)
+        results[historyMenu.addAction('Last 7 Days')] = datetime.datetime.now() - datetime.timedelta(7)
+        results[historyMenu.addAction('Last 30 Days')] = datetime.datetime.now() - datetime.timedelta(30)
+        results[historyMenu.addAction('Last 6 Month')] = datetime.datetime.now() - datetime.timedelta(30 * 6)
+        results[historyMenu.addAction('Last Year')] = datetime.datetime.now() - datetime.timedelta(365)
+        results[historyMenu.addAction('All Time')] = 0
+        results[historyMenu.addAction('None')] = datetime.datetime.now()
+        result = historyMenu.exec_(self.historyButton.mapToGlobal(QPoint(0, self.historyButton.height())))
+        if result in results:
+            self.showHistorySince(results[result])
+
+    @Slot(float)
+    @Slot(datetime.date)
+    @Slot(datetime.datetime)
+    def showHistorySince(self, timestamp, minNumMessage=0):
+        if type(timestamp) in (datetime.datetime, datetime.date):
+            timestamp = time.mktime(timestamp.timetuple())
+        history = self._chatHistory.get(self._conversationId)
+        for index, data in enumerate(history):
+            if timestamp <= data[0]:
+                numMessages = len(history) - index
+                break
+        else:
+            numMessages = 0
+        self.showHistoryNumMessages(max(numMessages, minNumMessage))
+
+    @Slot(int)
+    def showHistoryNumMessages(self, numMessages):
+        self.clearChatView()
+        # show last messages
+        if numMessages > 0:
+            for data in self._chatHistory.get(self._conversationId)[-numMessages:]:
+                timestamp, sender, receiver, message = data
+                self.show_message_signal.emit(self._conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
+        self.has_unread_message_signal.emit(self._conversationId, False)
 
     def clearChatView(self):
         self._lastSender = ''
@@ -65,23 +109,6 @@ class ChatWidget(QDockWidget):
         html = u'<html><head>%s%s</head><body></body></html>' % (content_type, css_link)
         self.chatView.setHtml(html)
         self._bodyElement = self.chatView.page().mainFrame().documentElement().findFirst('body')
-
-    @Slot(float)
-    def showHistorySince(self, timestamp):
-        history = self._chatHistory.get(self._conversationId)
-        for index, data in enumerate(history):
-            if timestamp <= data[0]:
-                self.showHistoryNumMessages(len(history) - index)
-                break
-
-    @Slot(int)
-    def showHistoryNumMessages(self, numMessages):
-        self.clearChatView()
-        # show last messages
-        for data in self._chatHistory.get(self._conversationId)[-numMessages:]:
-            timestamp, sender, receiver, message = data
-            self.show_message_signal.emit(self._conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
-        self.has_unread_message_signal.emit(self._conversationId, False)
 
     @Slot(str, bool)
     def unreadMessage(self, conversationId, unread):
