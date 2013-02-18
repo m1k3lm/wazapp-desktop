@@ -322,9 +322,9 @@ def iconFromTheme(name, fallback=None):
 def main():
     app = QApplication(sys.argv)
     # add res dir to search path for 'icons:...' file names
-    QDir.addSearchPath('icons', os.path.abspath(os.path.join(base_dir, '..', 'res', 'icons')))
-    QDir.addSearchPath('ui', os.path.abspath(os.path.join(base_dir, '..', 'res', 'ui')))
-    QDir.addSearchPath('css', os.path.abspath(os.path.join(base_dir, '..', 'res', 'css')))
+    QDir.setSearchPaths('icons', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'icons'))])
+    QDir.setSearchPaths('ui', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'ui'))])
+    QDir.setSearchPaths('css', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'css'))])
     # monkey patch QIcon.fromTheme for a more useful fallback behavior
     QIcon._fromTheme = QIcon.fromTheme
     QIcon.fromTheme = staticmethod(iconFromTheme)
