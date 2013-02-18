@@ -12,8 +12,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         super(SystemTrayIcon, self).__init__()
         self.setIcon(QIcon.fromTheme('tray-offline'))
         menu = QMenu()
-        menu.addAction('Show/Hide').triggered.connect(self.toggle_main_window_signal)
-        menu.addAction('Quit').triggered.connect(self.quit_signal)
+        menu.addAction(QIcon.fromTheme('view-minimize'), 'Show/Hide').triggered.connect(self.toggle_main_window_signal)
+        menu.addSeparator()
+        menu.addAction(QIcon.fromTheme('exit'), 'Quit').triggered.connect(self.quit_signal)
         self.setContextMenu(menu)
         self.show()
 
