@@ -4,7 +4,7 @@
 import os
 import datetime
 
-from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal
+from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QDir
 from PyQt4.QtGui import QWidget, QListWidgetItem, QLineEdit, QInputDialog, QIcon, QMenu
 from PyQt4.uic import loadUi
 
@@ -26,6 +26,10 @@ class ListWidgetItem(QListWidgetItem):
     def setOffline(self):
         self.setOnline(False)
 
+    def setGroup(self):
+        self.setIcon(QIcon.fromTheme('internet-group-chat'))
+        self._sortingValue = chr(ord(' ') - 1) + self.text()
+
     def setUnknown(self):
         self.setIcon(QIcon.fromTheme('dialog-question'))
         self._sortingValue = '~' + self.text()
@@ -40,8 +44,7 @@ class ContactsWidget(QWidget):
         super(ContactsWidget, self).__init__()
         self._items = {}
 
-        ui_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ContactsWidget.ui')
-        loadUi(ui_file, self)
+        loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ContactsWidget.ui'), self)
 
         self.importGoogleContactsButton.setIcon(QIcon.fromTheme('browser-download'))
         self.addContactButton.setIcon(QIcon.fromTheme('add'))
@@ -90,9 +93,13 @@ class ContactsWidget(QWidget):
     def addContact(self, name, conversationId):
         item = ListWidgetItem(name)
         item._conversationId = conversationId
-        item.setUnknown()
         phone = conversationId.split('@')[0]
-        item.setToolTip('Phone: +%s\nno information available (is this really a WhatApp user)' % (phone))
+        if '-' in phone:
+            item.setToolTip('Group: %s' % (phone))
+            item.setGroup()
+        else:
+            item.setToolTip('Phone: +%s\nno information available (is this really a WhatApp user)' % (phone))
+            item.setUnknown()
         self._items[conversationId] = item
         self.contactList.addItem(item)
 

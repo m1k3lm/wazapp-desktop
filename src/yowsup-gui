@@ -16,8 +16,8 @@ os.sys.path.insert(0, yowsup_dir)
 
 import sip
 sip.setapi('QString', 2)
-from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject
-from PyQt4.QtGui import QApplication
+from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject, QDir
+from PyQt4.QtGui import QApplication, QIcon
 
 from Gui.MainWindow import MainWindow
 from Gui.SystemTrayIcon import SystemTrayIcon
@@ -312,11 +312,24 @@ class GuiMain(QObject):
         #self._out('%s was last seen %s seconds ago' % (self._contacts.jid2name(jid), lastseen), logId=jid)
         self.contact_status_changed_signal.emit(jid, None, time.time() - lastseen)
 
+def iconFromTheme(name, fallback=None):
+    if QIcon.hasThemeIcon(name):
+        return QIcon._fromTheme(name)
+    if fallback is None:
+        fallback = QIcon('icons:%s.png' % name)
+    return fallback
 
 def main():
     app = QApplication(sys.argv)
+    # add res dir to search path for 'icons:...' file names
+    QDir.addSearchPath('icons', os.path.abspath(os.path.join(base_dir, '..', 'res', 'icons')))
+    QDir.addSearchPath('ui', os.path.abspath(os.path.join(base_dir, '..', 'res', 'ui')))
+    QDir.addSearchPath('css', os.path.abspath(os.path.join(base_dir, '..', 'res', 'css')))
+    # monkey patch QIcon.fromTheme for a more useful fallback behavior
+    QIcon._fromTheme = QIcon.fromTheme
+    QIcon.fromTheme = staticmethod(iconFromTheme)
 
-    # ctrl-c: exit Qt main loop and allow additional python code to run afterwards
+    # let ctrl-c exit Qt main loop and allow additional python code to run afterwards
     signal.signal(signal.SIGINT, lambda *args: app.exit(0))
     # force python interpreter to run every 500ms to process keyboard interrupt
     app.startTimer(500)

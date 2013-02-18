@@ -7,7 +7,7 @@ import datetime
 import time
 import webbrowser
 
-from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint
+from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint, QDir
 from PyQt4.QtGui import QDockWidget, QMenu, QIcon
 from PyQt4.QtWebKit import QWebPage
 from PyQt4.uic import loadUi
@@ -35,9 +35,7 @@ class ChatWidget(QDockWidget):
         self._contacts = contacts
         self._windowTitle = self._contacts.jid2name(self._conversationId)
 
-        self._filePath = os.path.dirname(os.path.realpath(__file__))
-        ui_file = os.path.join(self._filePath, 'ChatWidget.ui')
-        loadUi(ui_file, self)
+        loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ChatWidget.ui'), self)
 
         self.historyButton.setIcon(QIcon.fromTheme('clock'))
 
@@ -105,7 +103,7 @@ class ChatWidget(QDockWidget):
         self._lastSender = ''
         self._lastDate = ''
         content_type = u'<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
-        css_link = u'<link rel="stylesheet" type="text/css" href="file:///%s/ChatView.css">' % self._filePath.replace('\\', '/')
+        css_link = u'<link rel="stylesheet" type="text/css" href="file:///%s/ChatView.css">' % QDir.searchPaths('css')[0]
         html = u'<html><head>%s%s</head><body></body></html>' % (content_type, css_link)
         self.chatView.setHtml(html)
         self._bodyElement = self.chatView.page().mainFrame().documentElement().findFirst('body')
