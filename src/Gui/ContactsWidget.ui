@@ -39,10 +39,13 @@
    <item>
     <widget class="QPushButton" name="importGoogleContactsButton">
      <property name="toolTip">
-      <string>download contacts from your google contacts account</string>
+      <string>import contacts from your google contacts account</string>
      </property>
      <property name="text">
       <string>Import Google</string>
+     </property>
+     <property name="icon">
+      <iconset theme="browser-download"/>
      </property>
     </widget>
    </item>

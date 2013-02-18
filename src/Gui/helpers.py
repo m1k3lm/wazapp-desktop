@@ -30,8 +30,6 @@ def makeHtmlImageLink(imageData, url):
     image = makeHtmlInlineImage(imageData)
     return makeHtmlLink(image, url)
 
-__config = None
-
 def isConfigured():
     return None not in (getConfig('phone'), getConfig('password'))
 
@@ -56,17 +54,28 @@ def configure(configFile):
         print res
         print '-'*25
         password = res['pw']
-    global __config
-    __config = {'phone': phone, 'password': password}
+    _overwriteConfig({'phone': phone, 'password': password})
+
+__config = None
+
+def _overwriteConfig(config):
+    global __config, CONFIG_PATH
+    __config = config
     if not os.path.exists(CONFIG_PATH):
         os.mkdir(CONFIG_PATH)
     writeObjectToFile(CONFIG_FILE, __config)
 
-def getConfig(key):
+def getConfig(key, default=None):
     global __config
     if __config is None:
         try:
             __config = readObjectFromFile(CONFIG_FILE)
         except IOError:
             __config = {}
-    return __config.get(key)
+    return __config.get(key, default)
+
+def setConfig(key, value):
+    global __config
+    getConfig(key)
+    __config[key] = value
+    _overwriteConfig(__config)

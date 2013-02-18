@@ -4,6 +4,7 @@
 import os
 import base64
 
+from PyQt4.QtGui import QMessageBox
 from PyQt4.QtCore import QObject, pyqtSlot as Slot, pyqtSignal as Signal
 from helpers import CONTACTS_FILE, getConfig, readObjectFromFile, writeObjectToFile
 
@@ -62,33 +63,37 @@ class Contacts(QObject):
     def importGoogleContacts(self, googleUsername, googlePassword):
         import gdata.contacts.client
         gd_client = gdata.contacts.client.ContactsClient(source='GoogleInc-ContactsPythonSample-1')
-        gd_client.ClientLogin(googleUsername, googlePassword, gd_client.source)
+        try:
+            gd_client.ClientLogin(googleUsername, googlePassword, gd_client.source)
+        except gdata.client.BadAuthentication as e:
+            QMessageBox.warning(None, 'Authentication Failure', 'Failed to authenticate with Google for user:\n%s\n\nError was:\n%s' % (googleUsername, e))
+            return
 
         query = gdata.contacts.client.ContactsQuery()
         query.max_results = 10000
 
-        contacts = {}
+        googleContacts = {}
         feed = gd_client.GetContacts(q=query)
         for entry in feed.entry:
             for number in entry.phone_number:
-                contacts[number.text] = entry.title.text
-
-        print 'importGoogleContacts(): got %d contacts with phone numbers from google' % (len(contacts))
+                googleContacts[number.text] = entry.title.text
 
         waUsername = str(getConfig('phone'))
         waPassword = base64.b64decode(getConfig('password'))
-        waContactsSync = WAContactsSyncRequest(waUsername, waPassword, contacts.keys())
+        waContactsSync = WAContactsSyncRequest(waUsername, waPassword, googleContacts.keys())
         results = waContactsSync.send()
-        print 'importGoogleContacts(): WA sync matched %d of your google contacts' % (len(results.get('c', [])))
 
+        numWhatsAppUsers = 0
         for entry in results.get('c', []):
             hasWhatsApp = bool(entry['w'])
             if hasWhatsApp:
-                name = contacts[entry['p']]
+                name = googleContacts[entry['p']]
                 number = entry['n']
                 self.aliases[name] = number
                 self.aliasesRev[number] = name
+                numWhatsAppUsers += 1
 
         self._saveAliases()
 
         self.contacts_updated_signal.emit(self.getContacts())
+        QMessageBox.information(None, 'Import successful', 'Found %d WhatsApp users in your %d Google contacts.' % (numWhatsAppUsers, len(googleContacts)))
