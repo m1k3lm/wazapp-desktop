@@ -3,6 +3,7 @@
 
 import os
 import base64
+import re
 
 from PyQt4.QtGui import QMessageBox
 from PyQt4.QtCore import QObject, pyqtSlot as Slot, pyqtSignal as Signal
@@ -13,41 +14,63 @@ from Yowsup.Contacts.contacts import WAContactsSyncRequest
 class Contacts(QObject):
     contacts_updated_signal = Signal(dict)
     contact_status_changed_signal = Signal(str, dict)
+    edit_contact_signal = Signal(str, str)
+    userIdFormat = '%s@s.whatsapp.net'
+    groupIdFormat = '%s@g.us'
 
     def __init__(self):
         super(Contacts, self).__init__()
         self._contactStatus = {}
-        self._loadAliases()
+        self._loadContacts()
         self.contacts_updated_signal.emit(self.getContacts())
 
-    def _loadAliases(self):
-        self.aliases = {}
-        self.aliasesRev = {}
+    def _loadContacts(self):
+        self._contacts = {}
         if os.path.exists(CONTACTS_FILE):
-            self.aliases = readObjectFromFile(CONTACTS_FILE)
-            self.aliasesRev = dict([(val, key) for key, val in self.aliases.items()])
+            self._contacts = readObjectFromFile(CONTACTS_FILE)
 
-    def _saveAliases(self):
-        writeObjectToFile(CONTACTS_FILE, self.aliases)
+    def _saveContacts(self):
+        writeObjectToFile(CONTACTS_FILE, self._contacts)
 
-    def name2jid(self, name):
-        if name in self.aliases:
-            name = self.aliases[name]
-        if name.startswith("#"):
-            return "%s@g.us" % name[1:]
-        else:
-            return "%s@s.whatsapp.net" % name
+    def phoneToConversationId(self, phoneOrGroup):
+        # if there is an @, it's got to be a jid already
+        if '@' in phoneOrGroup:
+            return phoneOrGroup
+        # if there is exactly one - followed by 10 digits, it's got to be a group number
+        if phoneOrGroup.count('-') == 1 and phoneOrGroup[-11] == '-':
+            return self.groupIdFormat % phoneOrGroup
+        # strip all non numeric chars
+        phoneOrGroup = re.sub('[\D]+', '', phoneOrGroup)
+        return self.userIdFormat % phoneOrGroup
 
     def jid2name(self, jid):
-        name, server = jid.split("@")
-        if server == "g.us":
-            name = "#" + name
-        if name in self.aliasesRev:
-            name = self.aliasesRev[name]
-        return name
+        return self._contacts.get(jid, jid)
 
     def getContacts(self):
-        return dict([(name, self.name2jid(name)) for name in self.aliases.keys()])
+        return self._contacts.copy()
+
+    @Slot(str)
+    def removeContact(self, conversationId):
+        del self._contacts[conversationId]
+        self._saveContacts()
+        self.contacts_updated_signal.emit(self.getContacts())
+
+    @Slot(str, str)
+    def updateContact(self, name, phoneOrGroup):
+        if phoneOrGroup.count('-') == 1 and phoneOrGroup[-11] == '-':
+            phone = phoneOrGroup[:-11]
+        else:
+            phone = phoneOrGroup
+        waPhones = self.getWAUsers([phone]).values()
+        if len(waPhones) > 0:
+            self._contacts[self.phoneToConversationId(waPhones[0])] = name
+            self._saveContacts()
+            self.contacts_updated_signal.emit(self.getContacts())
+        else:
+            text = 'WhatsApp did not know about the phone number "%s"!\n' % (phoneOrGroup)
+            text += 'Please check that the number starts with a "+" and your country code.'
+            QMessageBox.warning(None, 'WhatsApp User Not Found', text)
+            self.edit_contact_signal.emit(name, phoneOrGroup)
 
     @Slot(str, object, object)
     def contactStatusChanged(self, conversationId, available, lastSeen):
@@ -58,6 +81,21 @@ class Contacts(QObject):
             status['lastSeen'] = lastSeen
         self._contactStatus[conversationId] = status
         self.contact_status_changed_signal.emit(conversationId, status)
+
+    def getWAUsers(self, phoneNumbers):
+        waUsername = str(getConfig('phone'))
+        waPassword = base64.b64decode(getConfig('password'))
+        waContactsSync = WAContactsSyncRequest(waUsername, waPassword, phoneNumbers)
+        results = waContactsSync.send()
+
+        waUsers = {}
+        for entry in results.get('c', []):
+            hasWhatsApp = bool(entry['w'])
+            if hasWhatsApp:
+                requestedPhone = entry['p']
+                phone = entry['n']
+                waUsers[requestedPhone] = phone
+        return waUsers
 
     @Slot(str, str)
     def importGoogleContacts(self, googleUsername, googlePassword):
@@ -78,22 +116,12 @@ class Contacts(QObject):
             for number in entry.phone_number:
                 googleContacts[number.text] = entry.title.text
 
-        waUsername = str(getConfig('phone'))
-        waPassword = base64.b64decode(getConfig('password'))
-        waContactsSync = WAContactsSyncRequest(waUsername, waPassword, googleContacts.keys())
-        results = waContactsSync.send()
+        waUsers = self.getWAUsers(googleContacts.keys())
+        for googlePhone, waPhone in waUsers.items():
+            name = googleContacts[googlePhone]
+            self._contacts[self.phoneToConversationId(waPhone)] = name
 
-        numWhatsAppUsers = 0
-        for entry in results.get('c', []):
-            hasWhatsApp = bool(entry['w'])
-            if hasWhatsApp:
-                name = googleContacts[entry['p']]
-                number = entry['n']
-                self.aliases[name] = number
-                self.aliasesRev[number] = name
-                numWhatsAppUsers += 1
-
-        self._saveAliases()
+        self._saveContacts()
 
         self.contacts_updated_signal.emit(self.getContacts())
-        QMessageBox.information(None, 'Import successful', 'Found %d WhatsApp users in your %d Google contacts.' % (numWhatsAppUsers, len(googleContacts)))
+        QMessageBox.information(None, 'Import successful', 'Found %d WhatsApp users in your %d Google contacts.' % (len(waUsers), len(googleContacts)))

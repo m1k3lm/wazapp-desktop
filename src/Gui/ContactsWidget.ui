@@ -6,17 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>138</width>
-    <height>569</height>
+    <width>285</width>
+    <height>637</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Contacts</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
-   <property name="margin">
-    <number>0</number>
-   </property>
    <item>
     <widget class="QListWidget" name="contactList">
      <property name="sizePolicy">
@@ -31,23 +28,43 @@
        <height>0</height>
       </size>
      </property>
+     <property name="contextMenuPolicy">
+      <enum>Qt::CustomContextMenu</enum>
+     </property>
      <property name="sortingEnabled">
       <bool>true</bool>
      </property>
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="importGoogleContactsButton">
-     <property name="toolTip">
-      <string>import contacts from your google contacts account</string>
-     </property>
-     <property name="text">
-      <string>Import Google</string>
-     </property>
-     <property name="icon">
-      <iconset theme="browser-download"/>
-     </property>
-    </widget>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QPushButton" name="addContactButton">
+       <property name="toolTip">
+        <string>Add new contact</string>
+       </property>
+       <property name="text">
+        <string>Add</string>
+       </property>
+       <property name="icon">
+        <iconset theme="add"/>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="importGoogleContactsButton">
+       <property name="toolTip">
+        <string>import contacts from your google contacts account</string>
+       </property>
+       <property name="text">
+        <string>Import</string>
+       </property>
+       <property name="icon">
+        <iconset theme="browser-download"/>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>

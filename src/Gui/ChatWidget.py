@@ -28,12 +28,12 @@ class ChatWidget(QDockWidget):
     show_history_num_messages_signal = Signal(int)
     has_unread_message_signal = Signal(str, bool)
 
-    def __init__(self, windowTitle, conversationId, chatHistory, contacts):
+    def __init__(self, conversationId, chatHistory, contacts):
         super(ChatWidget, self).__init__()
-        self._windowTitle = windowTitle
         self._conversationId = conversationId
         self._chatHistory = chatHistory
         self._contacts = contacts
+        self._windowTitle = self._contacts.jid2name(self._conversationId)
 
         self._filePath = os.path.dirname(os.path.realpath(__file__))
         ui_file = os.path.join(self._filePath, 'ChatWidget.ui')
@@ -98,7 +98,7 @@ class ChatWidget(QDockWidget):
         if numMessages > 0:
             for data in self._chatHistory.get(self._conversationId)[-numMessages:]:
                 timestamp, sender, receiver, message = data
-                self.show_message_signal.emit(self._conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
+                self.show_message_signal.emit(self._conversationId, timestamp, sender, receiver, message)
         self.has_unread_message_signal.emit(self._conversationId, False)
 
     def clearChatView(self):
@@ -151,6 +151,7 @@ class ChatWidget(QDockWidget):
                 self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
 
             # don't show sender name again, if multiple consecutive messages from one sender
+            sender = self._contacts.jid2name(sender)
             if sender == self._lastSender:
                 sender = '...'
             else:

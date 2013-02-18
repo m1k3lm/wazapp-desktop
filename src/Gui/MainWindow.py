@@ -32,11 +32,14 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._contactsWidget)
         self.add_contact_signal.connect(self._contactsWidget.addContact)
         self._contactsWidget.start_chat_signal.connect(self.getChatWidget)
-        self._contactsWidget.import_google_conctacts_signal.connect(self._contacts.importGoogleContacts)
+        self._contactsWidget.import_google_contacts_signal.connect(self._contacts.importGoogleContacts)
+        self._contactsWidget.update_contact_signal.connect(self._contacts.updateContact)
+        self._contactsWidget.remove_contact_signal.connect(self._contacts.removeContact)
 
         self._contactsWidget.contactsUpdated(self._contacts.getContacts())
         self._contacts.contacts_updated_signal.connect(self._contactsWidget.contactsUpdated)
         self._contacts.contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
+        self._contacts.edit_contact_signal.connect(self._contactsWidget.editContact)
 
         self._settings = QSettings('yowsup', 'gui')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():
@@ -80,7 +83,7 @@ class MainWindow(QMainWindow):
 
     def getChatWidget(self, conversationId):
         if conversationId not in self._chatWidgets:
-            dockWidget = ChatWidget(self._contacts.jid2name(conversationId), conversationId, self._chatHistory, self._contacts)
+            dockWidget = ChatWidget(conversationId, self._chatHistory, self._contacts)
             dockWidget.setObjectName(conversationId)
             dockWidget.setAllowedAreas(self._chatWidgetDockArea)
 

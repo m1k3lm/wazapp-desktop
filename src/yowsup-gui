@@ -61,9 +61,9 @@ class GuiMain(QObject):
         self._systrayIcon.toggle_main_window_signal.connect(self.toggleMainWindow)
         self.status_changed_signal.connect(self._systrayIcon.statusChanged)
 
-        self.show_message_signal.connect(self.showMessage)
+        self.show_message_signal.connect(self._mainWindow.showMessage)
 
-        self._ownJid = '%s@s.whatsapp.net' % getConfig('phone')
+        self._ownJid = self._contacts.phoneToConversationId(getConfig('phone'))
 
         connectionManager = YowsupConnectionManager()
         connectionManager.setAutoPong(True)
@@ -98,7 +98,7 @@ class GuiMain(QObject):
 
     @Slot(dict)
     def checkPresence(self, contacts):
-        for jid in contacts.values():
+        for jid in contacts.keys():
             self.methodsInterface.call('presence_request', (jid,))
 
     def logMessage(self, timestamp, sender, receiver, message):
@@ -112,10 +112,6 @@ class GuiMain(QObject):
         self._chatHistory.log(conversationId, timestamp, sender, receiver, message)
         self.show_message_signal.emit(conversationId, timestamp, sender, receiver, message)
 
-    @Slot(str, float, str, str, str)
-    def showMessage(self, conversationId, timestamp, sender, receiver, message):
-        self._mainWindow.show_message_signal.emit(conversationId, timestamp, self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message)
-
     @Slot(str, unicode)
     def do_send(self, receiver, message):
         self.methodsInterface.call('message_send', (receiver, message.encode('utf8')))
@@ -128,23 +124,23 @@ class GuiMain(QObject):
         message = u'[%s] %s' % (formattedDate, message)
         print u'\n' + message
 
-    def do_group_invite(self, group, user):
-        self.methodsInterface.call('group_addParticipant', (self._contacts.name2jid(group), self._contacts.name2jid(user)))
+    def do_group_invite(self, groupJid, userJid):
+        self.methodsInterface.call('group_addParticipant', (groupJid, userJid))
 
-    def do_group_kick(self, group, user):
-        self.methodsInterface.call('group_removeParticipant', (self._contacts.name2jid(group), self._contacts.name2jid(user)))
+    def do_group_kick(self, groupJid, userJid):
+        self.methodsInterface.call('group_removeParticipant', (groupJid, userJid))
 
     def do_group_create(self, subject):
         self.methodsInterface.call('group_create', (subject,))
 
-    def do_group_destroy(self, group):
-        self.methodsInterface.call('group_end', (self._contacts.name2jid(group),))
+    def do_group_destroy(self, groupJid):
+        self.methodsInterface.call('group_end', (groupJid,))
 
-    def do_group_subject(self, group, subject):
-        self.methodsInterface.call('group_subject', (self._contacts.name2jid(group), subject))
+    def do_group_subject(self, groupJid, subject):
+        self.methodsInterface.call('group_subject', (groupJid, subject))
 
-    def do_group_members(self, group):
-        self.methodsInterface.call('group_getParticipants', (self._contacts.name2jid(group),))
+    def do_group_members(self, groupJid):
+        self.methodsInterface.call('group_getParticipants', (groupJid,))
 
     @bind('message_received')
     def onMessageReceived(self, messageId, jid, messageContent, timestamp, wantsReceipt, pushName):
