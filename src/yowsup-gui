@@ -39,6 +39,7 @@ class GuiMain(QObject):
     show_message_signal = Signal(str, str, float, str, str, str)
     contact_status_changed_signal = Signal(str, object, object)
     status_changed_signal = Signal(bool, bool)
+    message_status_changed_signal = Signal(str, str, str)
 
     def __init__(self):
         super(GuiMain, self).__init__()
@@ -62,6 +63,7 @@ class GuiMain(QObject):
         self.status_changed_signal.connect(self._systrayIcon.statusChanged)
 
         self.show_message_signal.connect(self._mainWindow.showMessage)
+        self.message_status_changed_signal.connect(self._mainWindow.messageStatusChanged)
 
         self._ownJid = self._contacts.phoneToConversationId(getConfig('phone'))
 
@@ -109,7 +111,8 @@ class GuiMain(QObject):
         if type(message) is str:
             message = message.decode('utf8')
         #self._out('%s -> %s: %s' % (self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message), timestamp=timestamp, logId=conversationId)
-        if self._chatHistory.add(conversationId, messageId, timestamp, sender, receiver, message):
+        messageId = self._chatHistory.add(conversationId, messageId, timestamp, sender, receiver, message)
+        if messageId is not None:
             self.show_message_signal.emit(conversationId, messageId, timestamp, sender, receiver, message)
 
     @Slot(str, unicode)
@@ -153,6 +156,16 @@ class GuiMain(QObject):
         self.handleMessage(messageId, timestamp, author, groupJid, cgi.escape(messageContent))
         if wantsReceipt:
             self.methodsInterface.call('message_ack', (groupJid, messageId))
+
+    @bind('receipt_messageSent')
+    def onMessageSent(self, jid, messageId):
+        #print 'onMessageSent():', jid, messageId
+        self.message_status_changed_signal.emit(jid, messageId, 'sent')
+
+    @bind('receipt_messageDelivered')
+    def onMessageDelivered(self, jid, messageId):
+        #print 'onMessageDelivered():', jid, messageId
+        self.message_status_changed_signal.emit(jid, messageId, 'delivered')
 
     @bind('group_gotInfo')
     def onGroupInfo(self, groupJid, owner, subject, subjectOwner, subjectTimestamp, creationTimestamp):

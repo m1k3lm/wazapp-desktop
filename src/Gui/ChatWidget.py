@@ -12,6 +12,8 @@ from PyQt4.QtGui import QDockWidget, QMenu, QIcon
 from PyQt4.QtWebKit import QWebPage
 from PyQt4.uic import loadUi
 
+from helpers import getConfig
+
 url_pattern1 = re.compile(r"(^|[\n ])(([\w]+?://[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
 url_pattern2 = re.compile(r"(^|[\n ])(((www|ftp)\.[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
 def url2link(text):
@@ -34,6 +36,7 @@ class ChatWidget(QDockWidget):
         self._chatHistory = chatHistory
         self._contacts = contacts
         self._windowTitle = self._contacts.jid2name(self._conversationId)
+        self._ownJid = self._contacts.phoneToConversationId(getConfig('phone'))
 
         loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ChatWidget.ui'), self)
 
@@ -51,7 +54,7 @@ class ChatWidget(QDockWidget):
         self.show_history_num_messages_signal.connect(self.showHistoryNumMessages)
         self.has_unread_message_signal.connect(self.unreadMessage)
 
-        self.showHistorySince(datetime.date.today(), minNumMessage=3)
+        self.showHistorySince(datetime.date.today(), minMessage=3, maxMessages=10)
 
     def on_visibilityChanged(self, visible):
         if visible:
@@ -77,17 +80,17 @@ class ChatWidget(QDockWidget):
     @Slot(float)
     @Slot(datetime.date)
     @Slot(datetime.datetime)
-    def showHistorySince(self, timestamp, minNumMessage=0):
+    def showHistorySince(self, timestamp, minMessage=0, maxMessages=10000):
         if type(timestamp) in (datetime.datetime, datetime.date):
             timestamp = time.mktime(timestamp.timetuple())
         history = self._chatHistory.get(self._conversationId)
         for index, data in enumerate(history['list']):
             if timestamp <= data[0]:
-                numMessages = len(history) - index
+                numMessages = len(history['list']) - index
                 break
         else:
             numMessages = 0
-        self.showHistoryNumMessages(max(numMessages, minNumMessage))
+        self.showHistoryNumMessages(min(max(minMessage, numMessages), maxMessages))
 
     @Slot(int)
     def showHistoryNumMessages(self, numMessages):
@@ -148,6 +151,11 @@ class ChatWidget(QDockWidget):
                 self._lastDate = formattedDate
                 self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
 
+            if sender == self._ownJid:
+                nameClass = 'myname'
+            else:
+                nameClass = 'name'
+
             # don't show sender name again, if multiple consecutive messages from one sender
             sender = self._contacts.jid2name(sender)
             if sender == self._lastSender:
@@ -163,9 +171,15 @@ class ChatWidget(QDockWidget):
             if '<br>' not in message:
                 message = u'<br>'.join(message.split('\n'))
 
-            message = u'<p id="%s"><span class="time">[%s]</span> <span class="name">%s:</span> <span class="message">%s</span></p>' % (messageId, formattedTime, sender, message)
+            message = u'<p id=p%sp><span class="time">[%s]</span> <span class="%s">%s:</span> <span class="message">%s</span></p>' % (messageId, formattedTime, nameClass, sender, message)
             self._bodyElement.appendInside(message)
             self.scroll_to_bottom_signal.emit()
 
             if not (self.isVisible() and self.isActiveWindow()):
                 self.has_unread_message_signal.emit(self._conversationId, True)
+
+    @Slot(str, str, str)
+    def messageStatusChanged(self, conversationId, messageId, status):
+        messageElement = self._bodyElement.findFirst('p#p%sp' % messageId)
+        if not messageElement.isNull():
+            messageElement.setAttribute('class', status)

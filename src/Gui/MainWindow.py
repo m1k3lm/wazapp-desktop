@@ -83,6 +83,10 @@ class MainWindow(QMainWindow):
 
         dockWidget.showMessage(conversationId, messageId, timestamp, sender, receiver, message)
 
+    @Slot(str, str, str)
+    def messageStatusChanged(self, conversationId, messageId, status):
+        self.getChatWidget(conversationId).messageStatusChanged(conversationId, messageId, status)
+
     @Slot(str, bool)
     def unreadMessage(self, conversationId, unread):
         if unread:

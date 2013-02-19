@@ -11,10 +11,16 @@ p {
     font-weight: bold;
 }
 .time {
-    color: #888888;
+    color: #666666;
+}
+.sent .time {
+    color: #aaaa66;
+}
+.delivered .time {
+    color: #66bb66;
 }
 .name {
-    color: #0000dd;
+    color: #0066ee;
     font-weight: bold;
 }
 .myname {

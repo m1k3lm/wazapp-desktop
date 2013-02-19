@@ -37,11 +37,11 @@ class ChatHistory(object):
         # if message is already in the logs, don't show it again
         if messageId in history['dict']:
             print 'ChatHistory.add(): received duplicate message:', data
-            return False
+            return None
         message = u'<br>'.join(message.split('\n'))
         history['list'].append(data)
         history['dict'][messageId] = data
         logfile = codecs.open(LOG_FILE_TEMPLATE % conversationId, 'a', 'utf8')
         logfile.write('%s;%s;%s;%s;%s\n' % (messageId, timestamp, sender, receiver, message))
         logfile.close()
-        return True
+        return messageId
