@@ -1,15 +1,15 @@
-yowsup-gui
-==========
+WazApp Desktop
+==============
 
-yowsup-gui is a desktop (Qt) based GUI for the yowsup implemantation of the WhatsApp protocol.
-
-more infos about yowsup: https://github.com/tgalal/yowsup
+WazApp Desktop is a desktop (Qt) based GUI for the WhatsApp protocol.
+It uses the yowsup library for the communication: https://github.com/tgalal/yowsup
 
 
 requirements
 ============
 
-- yowsup repo in the same base dir as the yowsup-gui repo
+- yowsup repo in the same base dir as the wazapp-desktop repo
+    (/path/to/wazapp-desktop, /path/to/yowsup)
 
 - PyQt4
 

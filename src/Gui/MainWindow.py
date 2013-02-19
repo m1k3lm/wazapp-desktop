@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
         self._chatWidgets = {}
         self._unreadMessages = set()
 
-        self._windowTitle = 'Yowsup Gui'
+        self._windowTitle = 'WazApp Desktop'
         self.setWindowTitle(self._windowTitle)
         self._chatWidgetDockArea = Qt.LeftDockWidgetArea
         self.setTabPosition(self._chatWidgetDockArea, QTabWidget.West)
@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self._contacts.contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
         self._contacts.edit_contact_signal.connect(self._contactsWidget.editContact)
 
-        self._settings = QSettings('yowsup', 'gui')
+        self._settings = QSettings('wazapp', 'desktop')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():
             self.getChatWidget(conversationId)
         self.restoreGeometry(self._settings.value('mainWindow/geometry').toByteArray());
