@@ -23,7 +23,7 @@ def url2link(text):
 class ChatWidget(QDockWidget):
     send_message_signal = Signal(str, unicode)
     scroll_to_bottom_signal = Signal()
-    show_message_signal = Signal(str, float, str, str, str)
+    show_message_signal = Signal(str, str, float, str, str, str)
     show_history_since_signal = Signal(float)
     show_history_num_messages_signal = Signal(int)
     has_unread_message_signal = Signal(str, bool)
@@ -81,7 +81,7 @@ class ChatWidget(QDockWidget):
         if type(timestamp) in (datetime.datetime, datetime.date):
             timestamp = time.mktime(timestamp.timetuple())
         history = self._chatHistory.get(self._conversationId)
-        for index, data in enumerate(history):
+        for index, data in enumerate(history['list']):
             if timestamp <= data[0]:
                 numMessages = len(history) - index
                 break
@@ -94,9 +94,9 @@ class ChatWidget(QDockWidget):
         self.clearChatView()
         # show last messages
         if numMessages > 0:
-            for data in self._chatHistory.get(self._conversationId)[-numMessages:]:
-                timestamp, sender, receiver, message = data
-                self.show_message_signal.emit(self._conversationId, timestamp, sender, receiver, message)
+            for data in self._chatHistory.get(self._conversationId)['list'][-numMessages:]:
+                messageId, timestamp, sender, receiver, message = data
+                self.show_message_signal.emit(self._conversationId, messageId, timestamp, sender, receiver, message)
         self.has_unread_message_signal.emit(self._conversationId, False)
 
     def clearChatView(self):
@@ -137,7 +137,7 @@ class ChatWidget(QDockWidget):
         self.send_message_signal.emit(self._conversationId, message)
 
     @Slot(str, float, str, str, str)
-    def showMessage(self, conversationId, timestamp, sender, receiver, message):
+    def showMessage(self, conversationId, messageId, timestamp, sender, receiver, message):
         if conversationId != self._conversationId:
             print 'showMessage(): message to "%s" not for me "%s"' % (conversationId, self._conversationId)
             return
@@ -163,7 +163,7 @@ class ChatWidget(QDockWidget):
             if '<br>' not in message:
                 message = u'<br>'.join(message.split('\n'))
 
-            message = u'<p><span class="time">[%s]</span> <span class="name">%s:</span> <span class="message">%s</span></p>' % (formattedTime, sender, message)
+            message = u'<p id="%s"><span class="time">[%s]</span> <span class="name">%s:</span> <span class="message">%s</span></p>' % (messageId, formattedTime, sender, message)
             self._bodyElement.appendInside(message)
             self.scroll_to_bottom_signal.emit()
 

@@ -10,7 +10,6 @@ from ContactsWidget import ContactsWidget
 
 class MainWindow(QMainWindow):
     add_contact_signal = Signal(str, str)
-    show_message_signal = Signal(str, float, str, str, str)
     send_message_signal = Signal(str, unicode)
     has_unread_message_signal = Signal(bool)
 
@@ -26,7 +25,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(self._windowTitle)
         self._chatWidgetDockArea = Qt.LeftDockWidgetArea
         self.setTabPosition(self._chatWidgetDockArea, QTabWidget.West)
-        self.show_message_signal.connect(self.showMessage)
 
         self._contactsWidget = ContactsWidget()
         self.setCentralWidget(self._contactsWidget)
@@ -71,17 +69,19 @@ class MainWindow(QMainWindow):
         # raise dockWidget in front of other dockWidgets
         dockWidget.raise_()
 
-    @Slot(str, float, str, str, str)
-    def showMessage(self, conversationId, timestamp, sender, receiver, message):
+    @Slot(str, str, float, str, str, str)
+    def showMessage(self, conversationId, messageId, timestamp, sender, receiver, message):
         dockWidget = self.getChatWidget(conversationId)
-        focusedDockWidget = dockWidget
+
         # move dockWidget to the top of the tab list and restore the focus of the currently active tab
+        focusedDockWidget = dockWidget
         for other in self.tabifiedDockWidgets(dockWidget):
             if other.hasFocus():
                 focusedDockWidget = other
             self.tabifyDockWidget(dockWidget, other)
         focusedDockWidget.raise_()
-        dockWidget.showMessage(conversationId, timestamp, sender, receiver, message)
+
+        dockWidget.showMessage(conversationId, messageId, timestamp, sender, receiver, message)
 
     @Slot(str, bool)
     def unreadMessage(self, conversationId, unread):
