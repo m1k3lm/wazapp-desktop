@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
             self._chatWidgets[conversationId] = dockWidget
             dockWidget.send_message_signal.connect(self.send_message_signal)
             dockWidget.has_unread_message_signal.connect(self.unreadMessage)
+            dockWidget.edit_contact_signal.connect(self._contactsWidget.editContact)
 
         dockWidget = self._chatWidgets[conversationId]
         dockWidget.show()

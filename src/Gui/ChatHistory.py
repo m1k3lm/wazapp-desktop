@@ -5,6 +5,7 @@ import codecs
 from helpers import LOG_FILE_TEMPLATE
 
 class ChatHistory(object):
+    dataFields = ('messageId', 'timestamp', 'sender', 'receiver', 'message')
     def __init__(self):
         super(ChatHistory, self).__init__()
         self._conversations = {}
@@ -42,6 +43,6 @@ class ChatHistory(object):
         history['list'].append(data)
         history['dict'][messageId] = data
         logfile = codecs.open(LOG_FILE_TEMPLATE % conversationId, 'a', 'utf8')
-        logfile.write('%s;%s;%s;%s;%s\n' % (messageId, timestamp, sender, receiver, message))
+        logfile.write('%s;%s;%s;%s;%s\n' % data)
         logfile.close()
         return messageId

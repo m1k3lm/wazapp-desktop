@@ -19,13 +19,18 @@ p {
 .delivered .time {
     color: #66bb66;
 }
-.name {
-    color: #0066ee;
+a {
     font-weight: bold;
+    text-decoration: none;
 }
-.myname {
+a.unknown {
+    color: #5500aa;
+}
+a.name {
+    color: #0066ee;
+}
+a.myname {
     color: #0000bb;
-    font-weight: bold;
 }
 .message {
     color: #000000;

@@ -8,7 +8,7 @@ import time
 import webbrowser
 
 from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint, QDir
-from PyQt4.QtGui import QDockWidget, QMenu, QIcon
+from PyQt4.QtGui import QDockWidget, QMenu, QIcon, QCursor
 from PyQt4.QtWebKit import QWebPage
 from PyQt4.uic import loadUi
 
@@ -29,6 +29,7 @@ class ChatWidget(QDockWidget):
     show_history_since_signal = Signal(float)
     show_history_num_messages_signal = Signal(int)
     has_unread_message_signal = Signal(str, bool)
+    edit_contact_signal = Signal(str, str)
 
     def __init__(self, conversationId, chatHistory, contacts):
         super(ChatWidget, self).__init__()
@@ -63,17 +64,18 @@ class ChatWidget(QDockWidget):
 
     @Slot()
     def on_historyButton_pressed(self):
-        historyMenu = QMenu()
-        results = {}
-        results[historyMenu.addAction('Today')] = datetime.date.today()
-        results[historyMenu.addAction('Last 24 Hours')] = datetime.datetime.now() - datetime.timedelta(1)
-        results[historyMenu.addAction('Last 7 Days')] = datetime.datetime.now() - datetime.timedelta(7)
-        results[historyMenu.addAction('Last 30 Days')] = datetime.datetime.now() - datetime.timedelta(30)
-        results[historyMenu.addAction('Last 6 Month')] = datetime.datetime.now() - datetime.timedelta(30 * 6)
-        results[historyMenu.addAction('Last Year')] = datetime.datetime.now() - datetime.timedelta(365)
-        results[historyMenu.addAction('All Time')] = 0
-        results[historyMenu.addAction('None')] = datetime.datetime.now()
-        result = historyMenu.exec_(self.historyButton.mapToGlobal(QPoint(0, self.historyButton.height())))
+        menu = QMenu()
+        results = {
+            menu.addAction('Today'): datetime.date.today(),
+            menu.addAction('Last 24 Hours'): datetime.datetime.now() - datetime.timedelta(1),
+            menu.addAction('Last 7 Days'): datetime.datetime.now() - datetime.timedelta(7),
+            menu.addAction('Last 30 Days'): datetime.datetime.now() - datetime.timedelta(30),
+            menu.addAction('Last 6 Month'): datetime.datetime.now() - datetime.timedelta(30 * 6),
+            menu.addAction('Last Year'): datetime.datetime.now() - datetime.timedelta(365),
+            menu.addAction('All Time'): 0,
+            menu.addAction('None'): datetime.datetime.now(),
+        }
+        result = menu.exec_(self.historyButton.mapToGlobal(QPoint(0, self.historyButton.height())))
         if result in results:
             self.showHistorySince(results[result])
 
@@ -84,8 +86,9 @@ class ChatWidget(QDockWidget):
         if type(timestamp) in (datetime.datetime, datetime.date):
             timestamp = time.mktime(timestamp.timetuple())
         history = self._chatHistory.get(self._conversationId)
+        timestampIndex = self._chatHistory.dataFields.index('timestamp')
         for index, data in enumerate(history['list']):
-            if timestamp <= data[0]:
+            if timestamp <= data[timestampIndex]:
                 numMessages = len(history['list']) - index
                 break
         else:
@@ -125,9 +128,32 @@ class ChatWidget(QDockWidget):
         else:
             self.__on_messageText_keyPressEvent(event)
 
+    def on_command_contactMenu(self, parameters):
+        conversationId = parameters.get('jid')
+        if conversationId is None:
+            print 'on_command_contactMenu(): missing parameter "jid"'
+            return
+        knownContact = len(parameters.get('name', '')) > 0
+        menu = QMenu()
+        results = {
+            menu.addAction('Edit Contact' if knownContact else 'Add Contact'): (self.edit_contact_signal.emit, (parameters.get('name', ''), parameters['jid'])),
+        }
+        result = menu.exec_(QCursor.pos())
+        if result in results:
+            results[result][0](*results[result][1])
+
+
     def on_chatView_linkClicked(self, url):
-        #print 'on_chatView_linkClicked():', url.toString()
-        webbrowser.open(url.toString())
+        if url.scheme() == 'wa':
+            command = url.path()
+            parameters = dict(url.queryItems())
+            handler = getattr(self, 'on_command_%s' % command)
+            if handler is None:
+                print 'on_chatView_linkClicked(): unknown command: %s' % (command)
+            else:
+                handler(parameters)
+        else:
+            webbrowser.open(url.toString())
 
     @Slot()
     def on_scrollToBottom(self):
@@ -140,7 +166,7 @@ class ChatWidget(QDockWidget):
         self.send_message_signal.emit(self._conversationId, message)
 
     @Slot(str, float, str, str, str)
-    def showMessage(self, conversationId, messageId, timestamp, sender, receiver, message):
+    def showMessage(self, conversationId, messageId, timestamp, senderJid, receiver, message):
         if conversationId != self._conversationId:
             print 'showMessage(): message to "%s" not for me "%s"' % (conversationId, self._conversationId)
             return
@@ -151,17 +177,24 @@ class ChatWidget(QDockWidget):
                 self._lastDate = formattedDate
                 self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
 
-            if sender == self._ownJid:
+            senderName = self._contacts.jid2name(senderJid)
+            senderDisplayName = senderName
+
+            # set class for name element, depending if senderJid is in contacts and if its or own jid
+            if senderJid == senderName:
+                senderDisplayName = senderName.split('@')[0]
+                senderName = ''
+                nameClass = 'unknown'
+            elif senderJid == self._ownJid:
                 nameClass = 'myname'
             else:
                 nameClass = 'name'
 
             # don't show sender name again, if multiple consecutive messages from one sender
-            sender = self._contacts.jid2name(sender)
-            if sender == self._lastSender:
-                sender = '...'
+            if senderDisplayName == self._lastSender:
+                senderDisplayName = '...'
             else:
-                self._lastSender = sender
+                self._lastSender = senderDisplayName
 
             # parse plain text messages for links
             if '</a>' not in message:
@@ -171,8 +204,11 @@ class ChatWidget(QDockWidget):
             if '<br>' not in message:
                 message = u'<br>'.join(message.split('\n'))
 
-            message = u'<p id=p%sp><span class="time">[%s]</span> <span class="%s">%s:</span> <span class="message">%s</span></p>' % (messageId, formattedTime, nameClass, sender, message)
-            self._bodyElement.appendInside(message)
+            paragraph = u'<p id=p%sp>' % messageId
+            paragraph += '<span class="time">[%s] </span>' % formattedTime
+            paragraph += '<a href="wa:contactMenu?jid=%s&name=%s" class="%s">%s: </a>' % (senderJid, senderName, nameClass, senderDisplayName)
+            paragraph += '<span class="message">%s</span></p>' % message
+            self._bodyElement.appendInside(paragraph)
             self.scroll_to_bottom_signal.emit()
 
             if not (self.isVisible() and self.isActiveWindow()):
