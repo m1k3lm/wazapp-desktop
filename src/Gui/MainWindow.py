@@ -31,7 +31,7 @@ class MainWindow(QMainWindow):
         self._contactsWidget = ContactsWidget()
         self.setCentralWidget(self._contactsWidget)
         self.add_contact_signal.connect(self._contactsWidget.addContact)
-        self._contactsWidget.start_chat_signal.connect(self.getChatWidget)
+        self._contactsWidget.start_chat_signal.connect(self.startChat)
         self._contactsWidget.import_google_contacts_signal.connect(self._contacts.importGoogleContacts)
         self._contactsWidget.update_contact_signal.connect(self._contacts.updateContact)
         self._contactsWidget.remove_contact_signal.connect(self._contacts.removeContact)
@@ -64,9 +64,24 @@ class MainWindow(QMainWindow):
             self.hide()
             event.ignore()
 
+    @Slot(str)
+    def startChat(self, conversationId):
+        # retrieve or create dockWidget for this conversationId
+        dockWidget = self.getChatWidget(conversationId)
+        # raise dockWidget in front of other dockWidgets
+        dockWidget.raise_()
+
     @Slot(str, float, str, str, str)
     def showMessage(self, conversationId, timestamp, sender, receiver, message):
-        self.getChatWidget(conversationId).showMessage(conversationId, timestamp, sender, receiver, message)
+        dockWidget = self.getChatWidget(conversationId)
+        focusedDockWidget = dockWidget
+        # move dockWidget to the top of the tab list and restore the focus of the currently active tab
+        for other in self.tabifiedDockWidgets(dockWidget):
+            if other.hasFocus():
+                focusedDockWidget = other
+            self.tabifyDockWidget(dockWidget, other)
+        focusedDockWidget.raise_()
+        dockWidget.showMessage(conversationId, timestamp, sender, receiver, message)
 
     @Slot(str, bool)
     def unreadMessage(self, conversationId, unread):
@@ -82,14 +97,15 @@ class MainWindow(QMainWindow):
             self.has_unread_message_signal.emit(False)
 
     def getChatWidget(self, conversationId):
+        # if no dockWidget for this conversationId exists, create a new one
         if conversationId not in self._chatWidgets:
             dockWidget = ChatWidget(conversationId, self._chatHistory, self._contacts)
             dockWidget.setObjectName(conversationId)
             dockWidget.setAllowedAreas(self._chatWidgetDockArea)
 
             for other in self._chatWidgets.values():
-                # add new dockWidget tabified on top of the other non-floating dockWidgets
                 if not other.isFloating():
+                    # add new dockWidget tabified with the other dockWidgets
                     self.tabifyDockWidget(other, dockWidget)
                     break
             else:
@@ -100,9 +116,6 @@ class MainWindow(QMainWindow):
             dockWidget.send_message_signal.connect(self.send_message_signal)
             dockWidget.has_unread_message_signal.connect(self.unreadMessage)
 
-        # make sure dockWidget is visible and on top of others
         dockWidget = self._chatWidgets[conversationId]
-        dockWidget.messageText.setFocus()
         dockWidget.show()
-        dockWidget.raise_()
         return dockWidget
