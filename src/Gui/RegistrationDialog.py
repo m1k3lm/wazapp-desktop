@@ -3,7 +3,6 @@
 
 import os
 import re
-import pprint
 
 from PyQt4.QtCore import pyqtSlot as Slot, QDir
 from PyQt4.QtGui import QDialog, QMessageBox
@@ -67,21 +66,26 @@ class RegistrationDialog(QDialog):
     def on_requestSMSButton_clicked(self):
         self._requestRegistrationCode('sms', 'SMS')
 
+    def _isResponseOK(self, response, countryCode, phoneNumber):
+        if response.get('status') == 'ok':
+            return True
+        message = 'Something went wrong. Are the country code and phone number correct?\n+%s %s\n\n' % (countryCode, phoneNumber)
+        message += 'Server responded with:\n\n' + '\n'.join(['%s : %s' % (k, v) for k, v in response.items() if v is not None])
+        print 'Registration Failed:\n', message
+        QMessageBox.warning(self, 'Registration Failed', message)
+        return False
+
     def _requestRegistrationCode(self, method, methodDescription):
         countryCode, phoneNumber = self._getPhone()
         req = WACodeRequestV2(countryCode, phoneNumber, Utilities.processIdentity(self._identity), method)
-        res = req.send()
-        if res.get('status', 'fail') == 'ok':
-            if len(res.get('pw', '')) > 0:
-                self._passwordReceived(res['pw'])
+        response = req.send()
+        if self._isResponseOK(response, countryCode, phoneNumber):
+            if len(response.get('pw', '')) > 0:
+                self._passwordReceived(response['pw'])
             else:
                 message = 'You should receive a %s with your registration code soon.\n' % methodDescription
-                message += 'Enter it in the registration dialog to continue.\n'
+                message += 'Enter it in the registration dialog to register for your password.\n'
                 QMessageBox.information(self, 'Registration Code Requested', message)
-        else:
-            message = 'Something went wrong. Are the country code and phone number correct? +%s %s\n' % (countryCode, phoneNumber)
-            message += 'Server responded with:\n\n%s' % pprint.pformat(res)
-            QMessageBox.warning(self, 'Registration Failed', message)
 
     @Slot(str)
     def on_registrationCodeEdit_textChanged(self, text):
@@ -92,13 +96,15 @@ class RegistrationDialog(QDialog):
         code = self.registrationCodeEdit.text().replace(' ', '').replace('-', '')
         countryCode, phoneNumber = self._getPhone()
         req = WARegRequestV2(countryCode, phoneNumber, code, Utilities.processIdentity(self._identity))
-        res = req.send()
-        if res.get('status', 'fail') == 'ok' and len(res.get('pw', '')) > 0:
-            self._passwordReceived(res['pw'])
-        else:
-            message = 'Something went wrong. Are the country code and phone number correct? +%s %s\n' % (countryCode, phoneNumber)
-            message += 'Server responded with:\n\n%s' % pprint.pformat(res)
-            QMessageBox.warning(self, 'Registration Failed', message)
+        response = req.send()
+        if self._isResponseOK(response, countryCode, phoneNumber):
+            if len(response.get('pw', '')) > 0:
+                self._passwordReceived(response['pw'])
+            else:
+                message = 'Something went wrong. Server sent OK, but no password:\n\n'
+                message += '\n'.join(['%s : %s' % (k, v) for k, v in response.items() if v is not None])
+                print 'Registration Failed:\n', message
+                QMessageBox.warning(self, 'Registration Failed', message)
 
     def _passwordReceived(self, password):
         self.passwordEdit.setText(password)

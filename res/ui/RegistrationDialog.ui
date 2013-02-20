@@ -46,7 +46,7 @@
         <item>
          <widget class="QLabel" name="label_2">
           <property name="text">
-           <string>Phone Number</string>
+           <string>Mobile Phone Number</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -133,7 +133,7 @@
           <item>
            <widget class="QPushButton" name="registerButton">
             <property name="toolTip">
-             <string>Register with this registration code</string>
+             <string>Register with this registration code to receive your password</string>
             </property>
             <property name="text">
              <string>Register</string>
@@ -163,7 +163,8 @@
         <item>
          <widget class="QLineEdit" name="passwordEdit">
           <property name="toolTip">
-           <string>If you have a WhatsApp password already enter it here in base64 encoding</string>
+           <string>If you have a WhatsApp password already enter it here in base64 encoding.
+Otherwise use the &quot;Register account&quot; functions above to get a password</string>
           </property>
           <property name="maxLength">
            <number>1000</number>
