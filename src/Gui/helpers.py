@@ -3,9 +3,7 @@
 
 import os
 import pprint
-
-from Yowsup.Registration.v2.coderequest import WACodeRequest as WACodeRequestV2
-from Yowsup.Registration.v2.regrequest import WARegRequest as WARegRequestV2
+import base64
 
 CONFIG_PATH = os.path.expanduser('~/.whatsapp')
 CONFIG_FILE = CONFIG_PATH + '/config.conf'
@@ -31,30 +29,14 @@ def makeHtmlImageLink(imageData, url):
     return makeHtmlLink(image, url)
 
 def isConfigured():
-    return None not in (getConfig('phone'), getConfig('password'))
-
-def configure(configFile):
-    phoneNumber = raw_input('Phone number (without country code, no leading 0): ')
-    countryCode = raw_input('Country code (no leading +): ')
-    phone = countryCode + phoneNumber
-    password = raw_input('Password (base64 encoded, leave empty to register): ')
-    if not password:
-        identity = raw_input('Identity (leave empty if unknown): ') or '0000000000'
-        method = raw_input('Verification method (sms or voice): ') or 'sms'
-        req = WACodeRequestV2(countryCode, phoneNumber, identity, method)
-        res = req.send()
-        print '-'*25
-        print res
-        print '-'*25
-        code = raw_input('Received verification code: ')
-        code = ''.join(code.split('-'))
-        req = WARegRequestV2(countryCode, phoneNumber, code, identity)
-        res = req.send()
-        print '-'*25
-        print res
-        print '-'*25
-        password = res['pw']
-    _overwriteConfig({'phone': phone, 'password': password})
+    if getConfig('password') is None:
+        return False
+    try:
+        base64.b64decode(getConfig('password'))
+    except TypeError as e:
+        print 'isConfigured(): error decoding stored password: %s' % e
+        return False
+    return None not in (getConfig('countryCode'), getConfig('phoneNumber'))
 
 __config = None
 

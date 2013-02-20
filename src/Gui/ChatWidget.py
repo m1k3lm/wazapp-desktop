@@ -37,7 +37,7 @@ class ChatWidget(QDockWidget):
         self._chatHistory = chatHistory
         self._contacts = contacts
         self._windowTitle = self._contacts.jid2name(self._conversationId)
-        self._ownJid = self._contacts.phoneToConversationId(getConfig('phone'))
+        self._ownJid = self._contacts.phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
 
         loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ChatWidget.ui'), self)
 

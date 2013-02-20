@@ -83,7 +83,7 @@ class Contacts(QObject):
         self.contact_status_changed_signal.emit(conversationId, status)
 
     def getWAUsers(self, phoneNumbers):
-        waUsername = str(getConfig('phone'))
+        waUsername = str(getConfig('countryCode') + getConfig('phoneNumber'))
         waPassword = base64.b64decode(getConfig('password'))
         waContactsSync = WAContactsSyncRequest(waUsername, waPassword, phoneNumbers)
         results = waContactsSync.send()

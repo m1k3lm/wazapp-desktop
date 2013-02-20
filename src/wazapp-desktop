@@ -23,7 +23,7 @@ from Gui.MainWindow import MainWindow
 from Gui.SystemTrayIcon import SystemTrayIcon
 from Gui.Contacts import Contacts
 from Gui.ChatHistory import ChatHistory
-from Gui.helpers import makeHtmlImageLink, isConfigured, configure, getConfig
+from Gui.helpers import makeHtmlImageLink, isConfigured, getConfig
 
 from Yowsup.connectionmanager import YowsupConnectionManager
 
@@ -65,7 +65,7 @@ class GuiMain(QObject):
         self.show_message_signal.connect(self._mainWindow.showMessage)
         self.message_status_changed_signal.connect(self._mainWindow.messageStatusChanged)
 
-        self._ownJid = self._contacts.phoneToConversationId(getConfig('phone'))
+        self._ownJid = self._contacts.phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
 
         connectionManager = YowsupConnectionManager()
         connectionManager.setAutoPong(True)
@@ -74,6 +74,8 @@ class GuiMain(QObject):
         self.methodsInterface = connectionManager.getMethodsInterface()
         for event, func in _eventBindings.iteritems():
             self.signalsInterface.registerListener(event, func.__get__(self))
+
+        self.setOnline(False)
         self._login()
 
     @Slot()
@@ -81,8 +83,12 @@ class GuiMain(QObject):
         self.methodsInterface.call('presence_sendUnavailable')
 
     def _login(self):
-        self.username = getConfig('phone')
-        password = base64.b64decode(getConfig('password'))
+        self.username = getConfig('countryCode') + getConfig('phoneNumber')
+        try:
+            password = base64.b64decode(getConfig('password'))
+        except TypeError as e:
+            print 'cannot login: error using stored password: %s' % e
+            return
         self.methodsInterface.call('auth_login', (self.username, password))
 
     @Slot(bool)
@@ -348,16 +354,17 @@ def main():
     app.startTimer(500)
     app.timerEvent = lambda event: None
 
-    gui = GuiMain()
-    gui.show()
-    return app.exec_()
+    if not isConfigured():
+        from Gui.RegistrationDialog import RegistrationDialog
+        dialog = RegistrationDialog()
+        dialog.exec_()
+        dialog.close()
+
+    if isConfigured():
+        gui = GuiMain()
+        gui.show()
+        return app.exec_()
 
 
 if __name__ == '__main__':
-    if not isConfigured():
-        configure()
-    try:
-        main()
-    except:
-        import traceback
-        traceback.print_exc()
+    main()
