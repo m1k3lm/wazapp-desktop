@@ -5,7 +5,7 @@ import os
 import pprint
 import base64
 
-CONFIG_PATH = os.path.expanduser('~/.whatsapp')
+CONFIG_PATH = os.path.expanduser('~/.config/wazapp')
 CONFIG_FILE = CONFIG_PATH + '/config.conf'
 CONTACTS_FILE = CONFIG_PATH + '/contacts.conf'
 LOG_FILE_TEMPLATE = CONFIG_PATH + '/chat_%s.log'
