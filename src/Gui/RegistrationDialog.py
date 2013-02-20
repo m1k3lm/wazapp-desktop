@@ -67,13 +67,13 @@ class RegistrationDialog(QDialog):
         self._requestRegistrationCode('sms', 'SMS')
 
     def _isResponseOK(self, response, countryCode, phoneNumber):
-        if response.get('status') == 'ok':
-            return True
-        message = 'Something went wrong. Are the country code and phone number correct?\n+%s %s\n\n' % (countryCode, phoneNumber)
-        message += 'Server responded with:\n\n' + '\n'.join(['%s : %s' % (k, v) for k, v in response.items() if v is not None])
-        print 'Registration Failed:\n', message
-        QMessageBox.warning(self, 'Registration Failed', message)
-        return False
+        if response.get('status') == 'fail':
+            message = 'Something went wrong. Are the country code and phone number correct?\n+%s %s\n\n' % (countryCode, phoneNumber)
+            message += 'Server responded with:\n\n' + '\n'.join(['%s : %s' % (k, v) for k, v in response.items() if v is not None])
+            print 'Registration Failed:\n', message
+            QMessageBox.warning(self, 'Registration Failed', message)
+            return False
+        return True
 
     def _requestRegistrationCode(self, method, methodDescription):
         countryCode, phoneNumber = self._getPhone()
@@ -85,6 +85,8 @@ class RegistrationDialog(QDialog):
             else:
                 message = 'You should receive a %s with your registration code soon.\n' % methodDescription
                 message += 'Enter it in the registration dialog to register for your password.\n'
+                message += 'Server responded with:\n\n' + '\n'.join(['%s : %s' % (k, v) for k, v in response.items() if v is not None])
+                print 'Registration Code Requested:\n', message
                 QMessageBox.information(self, 'Registration Code Requested', message)
 
     @Slot(str)
