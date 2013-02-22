@@ -1,0 +1,56 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import sip
+sip.setapi('QString', 2)
+from PyQt4.QtCore import QDir
+from PyQt4.QtGui import QApplication, QIcon
+
+import os
+import signal
+import sys
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+os.sys.path.insert(0, os.path.join(base_dir, 'src'))
+
+from WazappDesktop.helpers import checkForYowsup, isAccountConfigured
+checkForYowsup()
+from WazappDesktop.WazappDesktop import WazappDesktop
+
+def iconFromTheme(name, fallback=None):
+    if QIcon.hasThemeIcon(name):
+        return QIcon._fromTheme(name)
+    if fallback is None:
+        fallback = QIcon('icons:%s.png' % name)
+    return fallback
+
+def main():
+    app = QApplication(sys.argv)
+    # add res dir to search path for 'icons:...' file names
+    QDir.setSearchPaths('icons', [os.path.abspath(os.path.join(base_dir, 'res', 'icons'))])
+    QDir.setSearchPaths('ui', [os.path.abspath(os.path.join(base_dir, 'res', 'ui'))])
+    QDir.setSearchPaths('css', [os.path.abspath(os.path.join(base_dir, 'res', 'css'))])
+    # monkey patch QIcon.fromTheme for a more useful fallback behavior
+    QIcon._fromTheme = QIcon.fromTheme
+    QIcon.fromTheme = staticmethod(iconFromTheme)
+
+    # let ctrl-c exit Qt main loop and allow additional python code to run afterwards
+    signal.signal(signal.SIGINT, lambda *args: app.exit(0))
+    # force python interpreter to run every 500ms to process keyboard interrupt
+    app.startTimer(500)
+    app.timerEvent = lambda event: None
+
+    if not isAccountConfigured():
+        from Gui.RegistrationDialog import RegistrationDialog
+        dialog = RegistrationDialog()
+        dialog.exec_()
+        dialog.close()
+
+    if isAccountConfigured():
+        gui = WazappDesktop()
+        gui.show()
+        return app.exec_()
+
+
+if __name__ == '__main__':
+    main()

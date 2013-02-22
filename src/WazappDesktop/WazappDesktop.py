@@ -1,29 +1,18 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sys
-import os
 import time
 import datetime
 import base64
 import cgi
-import signal
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
-os.sys.path.insert(0, base_dir)
-yowsup_dir = os.path.abspath(os.path.join(base_dir, '..', '..', 'yowsup', 'src'))
-os.sys.path.insert(0, yowsup_dir)
+from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject
 
-import sip
-sip.setapi('QString', 2)
-from PyQt4.QtCore import pyqtSlot as Slot, pyqtSignal as Signal, QObject, QDir
-from PyQt4.QtGui import QApplication, QIcon
-
-from Gui.MainWindow import MainWindow
-from Gui.SystemTrayIcon import SystemTrayIcon
-from Gui.Contacts import Contacts
-from Gui.ChatHistory import ChatHistory
-from Gui.helpers import makeHtmlImageLink, isConfigured, getConfig
+from .MainWindow import MainWindow
+from .SystemTrayIcon import SystemTrayIcon
+from .Contacts import Contacts
+from .ChatHistory import ChatHistory
+from .helpers import makeHtmlImageLink, getConfig
 
 from Yowsup.connectionmanager import YowsupConnectionManager
 
@@ -35,14 +24,14 @@ def bind(event):
     return wrap
 
 
-class GuiMain(QObject):
+class WazappDesktop(QObject):
     show_message_signal = Signal(str, str, float, str, str, str)
     contact_status_changed_signal = Signal(str, object, object)
     status_changed_signal = Signal(bool, bool)
     message_status_changed_signal = Signal(str, str, str)
 
     def __init__(self):
-        super(GuiMain, self).__init__()
+        super(WazappDesktop, self).__init__()
         self._contacts = Contacts()
         self._contacts.contacts_updated_signal.connect(self.checkPresence)
         self.contact_status_changed_signal.connect(self._contacts.contactStatusChanged)
@@ -330,41 +319,3 @@ class GuiMain(QObject):
     def onPresenceUpdated(self, jid, lastseen):
         #self._out('%s was last seen %s seconds ago' % (self._contacts.jid2name(jid), lastseen), logId=jid)
         self.contact_status_changed_signal.emit(jid, None, time.time() - lastseen)
-
-def iconFromTheme(name, fallback=None):
-    if QIcon.hasThemeIcon(name):
-        return QIcon._fromTheme(name)
-    if fallback is None:
-        fallback = QIcon('icons:%s.png' % name)
-    return fallback
-
-def main():
-    app = QApplication(sys.argv)
-    # add res dir to search path for 'icons:...' file names
-    QDir.setSearchPaths('icons', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'icons'))])
-    QDir.setSearchPaths('ui', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'ui'))])
-    QDir.setSearchPaths('css', [os.path.abspath(os.path.join(base_dir, '..', 'res', 'css'))])
-    # monkey patch QIcon.fromTheme for a more useful fallback behavior
-    QIcon._fromTheme = QIcon.fromTheme
-    QIcon.fromTheme = staticmethod(iconFromTheme)
-
-    # let ctrl-c exit Qt main loop and allow additional python code to run afterwards
-    signal.signal(signal.SIGINT, lambda *args: app.exit(0))
-    # force python interpreter to run every 500ms to process keyboard interrupt
-    app.startTimer(500)
-    app.timerEvent = lambda event: None
-
-    if not isConfigured():
-        from Gui.RegistrationDialog import RegistrationDialog
-        dialog = RegistrationDialog()
-        dialog.exec_()
-        dialog.close()
-
-    if isConfigured():
-        gui = GuiMain()
-        gui.show()
-        return app.exec_()
-
-
-if __name__ == '__main__':
-    main()
