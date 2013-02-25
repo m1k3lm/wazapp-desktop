@@ -10,19 +10,25 @@ CONFIG_PATH = os.path.expanduser(os.path.join('~', '.config', 'wazapp'))
 CONFIG_FILE = os.path.join(CONFIG_PATH, 'config.conf')
 CONTACTS_FILE = os.path.join(CONFIG_PATH, 'contacts.conf')
 LOG_FILE_TEMPLATE = os.path.join(CONFIG_PATH, 'chat_%s.log')
-YOWSUP_ZIP_URL = 'https://github.com/DorianScholz/yowsup/archive/master.zip'
 
 def checkForYowsup():
-    sys.path.append(os.path.join(CONFIG_PATH, 'yowsup-master', 'src'))
+    return checkForModule('Yowsup', 'https://github.com/DorianScholz/yowsup/archive/master.zip', CONFIG_PATH, os.path.join('yowsup-master', 'src'))
+
+def checkForPeewee():
+    return checkForModule('peewee', 'https://github.com/coleifer/peewee/archive/2.0.7.zip', CONFIG_PATH, 'peewee-2.0.7')
+
+def checkForModule(moduleName, downloadUrl, extractPath, importSubPath):
+    import imp
+    sys.path.append(os.path.join(extractPath, importSubPath))
     try:
-        import Yowsup
+        module = imp.load_module(moduleName, *imp.find_module(moduleName))
     except:
-        print 'Importing Yowsup failed, downloading from github:', YOWSUP_ZIP_URL
+        print 'Importing %s failed, downloading from: %s' % (moduleName, downloadUrl)
         try:
-            # download and extract yowsup zip file
+            # download and extract zip file
             import urllib2
             from tempfile import SpooledTemporaryFile
-            online_file = urllib2.urlopen(YOWSUP_ZIP_URL)
+            online_file = urllib2.urlopen(downloadUrl)
             with SpooledTemporaryFile() as temp_file:
                 temp_file.write(online_file.read())
 
@@ -31,15 +37,15 @@ def checkForYowsup():
                     zip_file.extractall(CONFIG_PATH)
             online_file.close()
 
-            # restart program to try and import again
-            sys.exit(os.system(sys.argv[0]))
+            # try import again
+            module = imp.load_module(moduleName, *imp.find_module(moduleName))
 
         except Exception as e:
-            print 'Could not download or extract Yowsup:', type(e), str(e)
-            print 'Please download Yowsup manually and put it in your Python path.'
+            print 'Could not download or extract %s: %s %s' % (moduleName, type(e), str(e))
+            print 'Please download %s manually and put it in your Python path.' % moduleName
             return None
 
-    return Yowsup
+    return module
 
 
 def readObjectFromFile(path):
