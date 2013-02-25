@@ -36,6 +36,9 @@
          <height>100</height>
         </size>
        </property>
+       <property name="contextMenuPolicy">
+        <enum>Qt::CustomContextMenu</enum>
+       </property>
       </widget>
       <widget class="QWidget" name="layoutWidget">
        <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -51,7 +54,9 @@
            <string>Show history</string>
           </property>
           <property name="icon">
-           <iconset theme="clock"/>
+           <iconset theme="clock">
+            <normaloff/>
+           </iconset>
           </property>
           <property name="toolButtonStyle">
            <enum>Qt::ToolButtonTextBesideIcon</enum>

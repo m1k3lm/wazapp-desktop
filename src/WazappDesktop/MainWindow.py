@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self._contacts.contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
         self._contacts.edit_contact_signal.connect(self._contactsWidget.editContact)
 
-        self._settings = QSettings('wazapp', 'desktop')
+        self._settings = QSettings('wazapp', 'wazapp-desktop')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():
             self.getChatWidget(conversationId)
         self.restoreGeometry(self._settings.value('mainWindow/geometry').toByteArray());

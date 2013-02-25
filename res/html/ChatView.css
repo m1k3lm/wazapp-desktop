@@ -1,0 +1,47 @@
+body {
+    font-family: sans-serif;
+    font-size: 11pt;
+}
+p {
+    margin: 0 0 0 0;
+}
+.date {
+    text-align: center;
+    color: #000000;
+    font-weight: bold;
+}
+.time {
+    color: #666666;
+}
+.sent .time {
+    color: #aaaa66;
+}
+.delivered .time {
+    color: #66bb66;
+}
+a {
+    font-weight: bold;
+    text-decoration: none;
+}
+a.unknown {
+    color: #5500aa;
+}
+a.name {
+    color: #0066ee;
+}
+a.myname {
+    color: #0000bb;
+}
+.message {
+    color: #000000;
+}
+.mouseOver {
+    border: 0;
+    padding: 0;
+    visibility: hidden;
+    position: absolute;
+    z-index: 100;
+}
+.mouseOver img {
+    border:5px solid #eee;
+}

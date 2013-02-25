@@ -197,7 +197,7 @@ class WazappDesktop(QObject):
         self.handleImageReceived(messageId, timestamp, author, groupJid, groupJid, preview, url, size, receiptRequested)
 
     def handleImageReceived(self, messageId, timestamp, sender, receiver, ack, preview, url, size, receiptRequested):
-        self.handleMessage(messageId, timestamp, sender, receiver, 'sent an image: %s' % makeHtmlImageLink(preview, url))
+        self.handleMessage(messageId, timestamp, sender, receiver, 'sent an image:<br>%s' % makeHtmlImageLink(preview, url))
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (ack, messageId))
 

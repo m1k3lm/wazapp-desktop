@@ -7,9 +7,9 @@ import datetime
 import time
 import webbrowser
 
-from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint, QDir
+from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QPoint, QDir, QUrl, QTimer
 from PyQt4.QtGui import QDockWidget, QMenu, QIcon, QCursor
-from PyQt4.QtWebKit import QWebPage
+from PyQt4.QtWebKit import QWebPage, QWebElement
 from PyQt4.uic import loadUi
 
 from helpers import getConfig
@@ -26,10 +26,12 @@ class ChatWidget(QDockWidget):
     send_message_signal = Signal(str, unicode)
     scroll_to_bottom_signal = Signal()
     show_message_signal = Signal(str, str, float, str, str, str)
+    show_history_message_signal = Signal(str, str, float, str, str, str, bool)
     show_history_since_signal = Signal(float)
     show_history_num_messages_signal = Signal(int)
     has_unread_message_signal = Signal(str, bool)
     edit_contact_signal = Signal(str, str)
+    paragraphIdFormat = 'p%s'
 
     def __init__(self, conversationId, chatHistory, contacts):
         super(ChatWidget, self).__init__()
@@ -38,8 +40,14 @@ class ChatWidget(QDockWidget):
         self._contacts = contacts
         self._windowTitle = self._contacts.jid2name(self._conversationId)
         self._ownJid = self._contacts.phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
+        self._bodyElement = QWebElement()
+        self._scrollTimer = QTimer()
+        self._scrollTimer.setSingleShot(True)
+        self._scrollTimer.timeout.connect(self.on_scrollToBottom)
+        self.scroll_to_bottom_signal.connect(self.on_scrollToBottom, Qt.QueuedConnection)
 
         loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ChatWidget.ui'), self)
+        self.chatView.load(QUrl('file:///%s/ChatView.html' % QDir.searchPaths('html')[0]))
 
         self.historyButton.setIcon(QIcon.fromTheme('clock'))
 
@@ -49,13 +57,24 @@ class ChatWidget(QDockWidget):
         self.chatView.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
         self.__on_messageText_keyPressEvent = self.messageText.keyPressEvent
         self.messageText.keyPressEvent = self.on_messageText_keyPressEvent
-        self.scroll_to_bottom_signal.connect(self.on_scrollToBottom)
         self.show_message_signal.connect(self.showMessage)
+        self.show_history_message_signal.connect(self.showMessage)
         self.show_history_since_signal.connect(self.showHistorySince)
         self.show_history_num_messages_signal.connect(self.showHistoryNumMessages)
         self.has_unread_message_signal.connect(self.unreadMessage)
 
         self.showHistorySince(datetime.date.today(), minMessage=3, maxMessages=10)
+
+    def on_chatView_customContextMenuRequested(self, pos):
+        menu = QMenu()
+        results = {}
+        results[menu.addAction('Dump HTML')] = self.dumpHtml
+        result = menu.exec_(self.chatView.mapToGlobal(pos))
+        if result in results:
+            results[result]()
+
+    def dumpHtml(self):
+        print self.chatView.page().mainFrame().toHtml()
 
     def on_visibilityChanged(self, visible):
         if visible:
@@ -97,22 +116,40 @@ class ChatWidget(QDockWidget):
 
     @Slot(int)
     def showHistoryNumMessages(self, numMessages):
+        #print numMessages, self._conversationId
         self.clearChatView()
+        # queue showing of messages until page is loaded
+        self._showNumMessages = numMessages
+        if self._bodyElement.isNull():
+            return
+        self._showHistoryMessages()
+
+    def _showHistoryMessages(self):
+        if self._bodyElement.isNull():
+            print '_showHistoryMessages(): bodyElement is Null!'
+            return
         # show last messages
-        if numMessages > 0:
-            for data in self._chatHistory.get(self._conversationId)['list'][-numMessages:]:
+        if self._showNumMessages > 0:
+            for data in self._chatHistory.get(self._conversationId)['list'][-self._showNumMessages:]:
                 messageId, timestamp, sender, receiver, message = data
-                self.show_message_signal.emit(self._conversationId, messageId, timestamp, sender, receiver, message)
-        self.has_unread_message_signal.emit(self._conversationId, False)
+                self.show_history_message_signal.emit(self._conversationId, messageId, timestamp, sender, receiver, message, False)
+            self._showNumMessages = 0
 
     def clearChatView(self):
         self._lastSender = ''
         self._lastDate = ''
-        content_type = u'<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
-        css_link = u'<link rel="stylesheet" type="text/css" href="file:///%s/ChatView.css">' % QDir.searchPaths('css')[0]
-        html = u'<html><head>%s%s</head><body></body></html>' % (content_type, css_link)
-        self.chatView.setHtml(html)
+        self._showNumMessages = 0
+        self._bodyElement.setInnerXml('')
+
+    @Slot()
+    @Slot(bool)
+    def on_chatView_loadFinished(self, ok=True):
         self._bodyElement = self.chatView.page().mainFrame().documentElement().findFirst('body')
+        # check that the body element is really loaded, otherwise try again later
+        if self._bodyElement.isNull():
+            QTimer.singleShot(100, self.on_chatView_loadFinished)
+            return
+        self._showHistoryMessages()
 
     @Slot(str, bool)
     def unreadMessage(self, conversationId, unread):
@@ -157,7 +194,9 @@ class ChatWidget(QDockWidget):
 
     @Slot()
     def on_scrollToBottom(self):
-        self.chatView.page().mainFrame().setScrollBarValue(Qt.Vertical, self.chatView.page().mainFrame().scrollBarMaximum(Qt.Vertical))
+        bottom = self.chatView.page().mainFrame().scrollBarMaximum(Qt.Vertical)
+        print 'on_scrollToBottom():', bottom
+        self.chatView.page().mainFrame().setScrollBarValue(Qt.Vertical, bottom)
 
     @Slot()
     def on_sendButton_clicked(self):
@@ -166,56 +205,71 @@ class ChatWidget(QDockWidget):
         self.send_message_signal.emit(self._conversationId, message)
 
     @Slot(str, float, str, str, str)
-    def showMessage(self, conversationId, messageId, timestamp, senderJid, receiver, message):
+    @Slot(str, float, str, str, str, bool)
+    def showMessage(self, conversationId, messageId, timestamp, senderJid, receiver, message, isNewMessage=True):
+        if len(message) == 0:
+            return
+        # make sure this message goes in the right chat view
         if conversationId != self._conversationId:
             print 'showMessage(): message to "%s" not for me "%s"' % (conversationId, self._conversationId)
             return
-        if len(message) > 0:
-            formattedDate = datetime.datetime.fromtimestamp(timestamp).strftime('%A, %d %B %Y')
-            formattedTime = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-            if self._lastDate != formattedDate:
-                self._lastDate = formattedDate
-                self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
+        # if html page is not loaded yet, queue this message
+        if self._bodyElement.isNull():
+            print 'queuing'
+            self._showNumMessages += 1
+            return
 
-            senderName = self._contacts.jid2name(senderJid)
-            senderDisplayName = senderName
+        formattedDate = datetime.datetime.fromtimestamp(timestamp).strftime('%A, %d %B %Y')
+        formattedTime = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
+        if self._lastDate != formattedDate:
+            self._lastDate = formattedDate
+            self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
 
-            # set class for name element, depending if senderJid is in contacts and if its or own jid
-            if senderJid == senderName:
-                senderDisplayName = senderName.split('@')[0]
-                senderName = ''
-                nameClass = 'unknown'
-            elif senderJid == self._ownJid:
-                nameClass = 'myname'
-            else:
-                nameClass = 'name'
+        senderName = self._contacts.jid2name(senderJid)
+        senderDisplayName = senderName
 
-            # don't show sender name again, if multiple consecutive messages from one sender
-            if senderDisplayName == self._lastSender:
-                senderDisplayName = '...'
-            else:
-                self._lastSender = senderDisplayName
+        # set class for name element, depending if senderJid is in contacts and if its or own jid
+        if senderJid == senderName:
+            senderDisplayName = senderName.split('@')[0]
+            senderName = ''
+            nameClass = 'unknown'
+        elif senderJid == self._ownJid:
+            nameClass = 'myname'
+        else:
+            nameClass = 'name'
 
-            # parse plain text messages for links
-            if '</a>' not in message:
-                message = url2link(message)
+        # don't show sender name again, if multiple consecutive messages from one sender
+        if senderDisplayName == self._lastSender:
+            senderDisplayName = '...'
+        else:
+            self._lastSender = senderDisplayName
 
-            # parse plain text messages for new lines
-            if '<br>' not in message:
-                message = u'<br>'.join(message.split('\n'))
+        # parse plain text messages for links
+        if '</a>' not in message:
+            message = url2link(message)
 
-            paragraph = u'<p id=p%sp>' % messageId
-            paragraph += '<span class="time">[%s] </span>' % formattedTime
-            paragraph += '<a href="wa:contactMenu?jid=%s&name=%s" class="%s">%s: </a>' % (senderJid, senderName, nameClass, senderDisplayName)
-            paragraph += '<span class="message">%s</span></p>' % message
-            self._bodyElement.appendInside(paragraph)
-            self.scroll_to_bottom_signal.emit()
+        # parse plain text messages for new lines
+        if '<br>' not in message:
+            message = u'<br>'.join(message.split('\n'))
 
-            if not (self.isVisible() and self.isActiveWindow()):
-                self.has_unread_message_signal.emit(self._conversationId, True)
+        paragraphId = self.paragraphIdFormat % messageId
+        paragraph = u'<p id=%s>' % paragraphId
+        paragraph += '<span class="time">[%s] </span>' % formattedTime
+        paragraph += '<a href="wa:contactMenu?jid=%s&name=%s" class="%s">%s: </a>' % (senderJid, senderName, nameClass, senderDisplayName)
+        paragraph += '<span class="message">%s</span></p>' % message
+        self._bodyElement.appendInside(paragraph)
+
+        self.chatView.page().mainFrame().evaluateJavaScript('elementAdded("%s"); null' % paragraphId)
+
+        # set scroll timer to scroll down in 100ms, after the new text is hopefully rendered (any better solutions?)
+        self._scrollTimer.start(100)
+
+        if isNewMessage and not (self.isVisible() and self.isActiveWindow()):
+            self.has_unread_message_signal.emit(self._conversationId, True)
 
     @Slot(str, str, str)
     def messageStatusChanged(self, conversationId, messageId, status):
-        messageElement = self._bodyElement.findFirst('p#p%sp' % messageId)
+        paragraphId = self.paragraphIdFormat % messageId
+        messageElement = self._bodyElement.findFirst('p#%s' % paragraphId)
         if not messageElement.isNull():
             messageElement.setAttribute('class', status)

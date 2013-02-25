@@ -29,7 +29,7 @@ def main():
     # add res dir to search path for 'icons:...' file names
     QDir.setSearchPaths('icons', [os.path.abspath(os.path.join(base_dir, 'res', 'icons'))])
     QDir.setSearchPaths('ui', [os.path.abspath(os.path.join(base_dir, 'res', 'ui'))])
-    QDir.setSearchPaths('css', [os.path.abspath(os.path.join(base_dir, 'res', 'css'))])
+    QDir.setSearchPaths('html', [os.path.abspath(os.path.join(base_dir, 'res', 'html'))])
     # monkey patch QIcon.fromTheme for a more useful fallback behavior
     QIcon._fromTheme = QIcon.fromTheme
     QIcon.fromTheme = staticmethod(iconFromTheme)
