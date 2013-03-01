@@ -34,6 +34,11 @@ class ChatWidget(QDockWidget):
     has_unread_message_signal = Signal(str, bool)
     edit_contact_signal = Signal(str, str)
     paragraphIdFormat = 'p%s'
+    paragraphFormat = '''<p id=%(paragraphId)s>
+        <span class="time">[%(formattedTime)s] </span>
+        <a href="wa:contactMenu?jid=%(senderJid)s&name=%(senderName)s" class="%(nameClass)s">%(senderDisplayName)s: </a>
+        <span class="message">%(message)s</span></p>
+    '''
 
     def __init__(self, conversationId):
         super(ChatWidget, self).__init__()
@@ -217,47 +222,46 @@ class ChatWidget(QDockWidget):
             self._showNumMessages += 1
             return
 
-        formattedDate = datetime.datetime.fromtimestamp(timestamp).strftime('%A, %d %B %Y')
-        formattedTime = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
-        if self._lastDate != formattedDate:
-            self._lastDate = formattedDate
-            self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
+        parameters = {}
+        parameters['message'] = message
+        parameters['formattedDate'] = datetime.datetime.fromtimestamp(timestamp).strftime('%A, %d %B %Y')
+        parameters['formattedTime'] = datetime.datetime.fromtimestamp(timestamp).strftime('%H:%M:%S')
+        if self._lastDate != parameters['formattedDate']:
+            self._lastDate = parameters['formattedDate']
+            self._bodyElement.appendInside('<p class="date">%s</p>' % parameters['formattedDate'])
 
-        senderName = Contacts.instance().jid2name(senderJid)
-        senderDisplayName = senderName
+        parameters['senderJid'] = senderJid
+        parameters['senderName'] = Contacts.instance().jid2name(senderJid)
+        parameters['senderDisplayName'] = parameters['senderName']
 
         # set class for name element, depending if senderJid is in contacts and if its or own jid
-        if senderJid == senderName:
-            senderDisplayName = senderName.split('@')[0]
-            senderName = ''
-            nameClass = 'unknown'
-        elif senderJid == self._ownJid:
-            nameClass = 'myname'
+        if parameters['senderJid'] == parameters['senderName']:
+            parameters['senderDisplayName'] = parameters['senderName'].split('@')[0]
+            parameters['senderName'] = ''
+            parameters['nameClass'] = 'unknown'
+        elif parameters['senderJid'] == self._ownJid:
+            parameters['nameClass'] = 'myname'
         else:
-            nameClass = 'name'
+            parameters['nameClass'] = 'name'
 
         # don't show sender name again, if multiple consecutive messages from one sender
-        if senderDisplayName == self._lastSender:
-            senderDisplayName = '...'
+        if parameters['senderDisplayName'] == self._lastSender:
+            parameters['senderDisplayName'] = '...'
         else:
-            self._lastSender = senderDisplayName
+            self._lastSender = parameters['senderDisplayName']
 
         # parse plain text messages for links
-        if '</a>' not in message:
-            message = url2link(message)
+        if '</a>' not in parameters['message']:
+            parameters['message'] = url2link(parameters['message'])
 
         # parse plain text messages for new lines
-        if '<br>' not in message:
-            message = u'<br>'.join(message.split('\n'))
+        if '<br>' not in parameters['message']:
+            parameters['message'] = '<br>'.join(parameters['message'].split('\n'))
 
-        paragraphId = self.paragraphIdFormat % messageId
-        paragraph = u'<p id=%s>' % paragraphId
-        paragraph += '<span class="time">[%s] </span>' % formattedTime
-        paragraph += '<a href="wa:contactMenu?jid=%s&name=%s" class="%s">%s: </a>' % (senderJid, senderName, nameClass, senderDisplayName)
-        paragraph += '<span class="message">%s</span></p>' % message
-        self._bodyElement.appendInside(paragraph)
+        parameters['paragraphId'] = self.paragraphIdFormat % messageId
+        self._bodyElement.appendInside(self.paragraphFormat % parameters)
 
-        self.chatView.page().mainFrame().evaluateJavaScript('elementAdded("%s"); null' % paragraphId)
+        self.chatView.page().mainFrame().evaluateJavaScript('elementAdded("%s"); null' % parameters['paragraphId'])
 
         # set scroll timer to scroll down in 100ms, after the new text is hopefully rendered (any better solutions?)
         self._scrollTimer.start(100)
