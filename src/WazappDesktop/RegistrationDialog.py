@@ -8,7 +8,7 @@ from PyQt4.QtCore import pyqtSlot as Slot, QDir
 from PyQt4.QtGui import QDialog, QMessageBox
 from PyQt4.uic import loadUi
 
-from helpers import getConfig, setConfig
+from .helpers import getConfig, setConfig
 
 from Yowsup.Common.utilities import Utilities
 from Yowsup.Registration.v2.coderequest import WACodeRequest as WACodeRequestV2

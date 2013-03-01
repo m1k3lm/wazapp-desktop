@@ -13,18 +13,12 @@ from .SystemTrayIcon import SystemTrayIcon
 from .Contacts import Contacts
 from .ChatHistory import ChatHistory
 from .helpers import makeHtmlImageLink, getConfig
+from .Events import Events
+from .PictureDownloader import PictureDownloader
 
 from Yowsup.connectionmanager import YowsupConnectionManager
 
-_eventBindings = {}
-def bind(event):
-    def wrap(func):
-        _eventBindings[event] = func
-        return func
-    return wrap
-
-
-class WazappDesktop(QObject):
+class WazappDesktop(QObject, Events):
     show_message_signal = Signal(str, str, float, str, str, str)
     contact_status_changed_signal = Signal(str, object, object)
     status_changed_signal = Signal(bool, bool)
@@ -32,15 +26,13 @@ class WazappDesktop(QObject):
 
     def __init__(self):
         super(WazappDesktop, self).__init__()
-        self._contacts = Contacts()
-        self._contacts.contacts_updated_signal.connect(self.checkPresence)
-        self.contact_status_changed_signal.connect(self._contacts.contactStatusChanged)
+        Contacts.instance().contacts_updated_signal.connect(self.checkPresence)
+        self.contact_status_changed_signal.connect(Contacts.instance().contactStatusChanged)
 
-        self._chatHistory = ChatHistory()
         self._hasUnreadMessage = False
         self._isOnline = False
 
-        self._mainWindow = MainWindow(self._contacts, self._chatHistory)
+        self._mainWindow = MainWindow()
         self.show = self._mainWindow.show
         self._mainWindow.send_message_signal.connect(self.do_send)
         self._mainWindow.has_unread_message_signal.connect(self.unreadMessage)
@@ -54,21 +46,25 @@ class WazappDesktop(QObject):
         self.show_message_signal.connect(self._mainWindow.showMessage)
         self.message_status_changed_signal.connect(self._mainWindow.messageStatusChanged)
 
-        self._ownJid = self._contacts.phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
+        self._ownJid = Contacts.instance().phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
 
         connectionManager = YowsupConnectionManager()
         connectionManager.setAutoPong(True)
-        self.cm = connectionManager
+
+        self._pictureDownloader = PictureDownloader(connectionManager, Contacts.instance())
+
         self.signalsInterface = connectionManager.getSignalsInterface()
         self.methodsInterface = connectionManager.getMethodsInterface()
-        for event, func in _eventBindings.iteritems():
-            self.signalsInterface.registerListener(event, func.__get__(self))
+        for method, events in self.getEventBindings().iteritems():
+            for event in events:
+                self.signalsInterface.registerListener(event, method)
 
         self.setOnline(False)
         self._login()
 
     @Slot()
     def close(self):
+        self._pictureDownloader.close()
         self.methodsInterface.call('presence_sendUnavailable')
 
     def _login(self):
@@ -95,6 +91,7 @@ class WazappDesktop(QObject):
 
     @Slot(dict)
     def checkPresence(self, contacts):
+        self.methodsInterface.call('picture_getIds', (','.join(contacts.keys()),))
         for jid in contacts.keys():
             self.methodsInterface.call('presence_request', (jid,))
 
@@ -105,8 +102,8 @@ class WazappDesktop(QObject):
             conversationId = receiver
         if type(message) is str:
             message = message.decode('utf8')
-        #self._out('%s -> %s: %s' % (self._contacts.jid2name(sender), self._contacts.jid2name(receiver), message), timestamp=timestamp, logId=conversationId)
-        messageId = self._chatHistory.add(conversationId, messageId, timestamp, sender, receiver, message)
+        #self._out('%s -> %s: %s' % (Contacts.instance().jid2name(sender), Contacts.instance().jid2name(receiver), message), timestamp=timestamp, logId=conversationId)
+        messageId = ChatHistory.instance().add(conversationId, messageId, timestamp, sender, receiver, message)
         if messageId is not None:
             self.show_message_signal.emit(conversationId, messageId, timestamp, sender, receiver, message)
 
@@ -140,59 +137,59 @@ class WazappDesktop(QObject):
     def do_group_members(self, groupJid):
         self.methodsInterface.call('group_getParticipants', (groupJid,))
 
-    @bind('message_received')
+    @Events.bind('message_received')
     def onMessageReceived(self, messageId, jid, messageContent, timestamp, wantsReceipt, pushName):
         self.handleMessage(messageId, timestamp, jid, self._ownJid, cgi.escape(messageContent))
         if wantsReceipt:
             self.methodsInterface.call('message_ack', (jid, messageId))
 
-    @bind('group_messageReceived')
+    @Events.bind('group_messageReceived')
     def onGroupMessageReceived(self, messageId, groupJid, author, messageContent, timestamp, wantsReceipt, pushName):
         self.handleMessage(messageId, timestamp, author, groupJid, cgi.escape(messageContent))
         if wantsReceipt:
             self.methodsInterface.call('message_ack', (groupJid, messageId))
 
-    @bind('receipt_messageSent')
+    @Events.bind('receipt_messageSent')
     def onMessageSent(self, jid, messageId):
         #print 'onMessageSent():', jid, messageId
         self.message_status_changed_signal.emit(jid, messageId, 'sent')
 
-    @bind('receipt_messageDelivered')
+    @Events.bind('receipt_messageDelivered')
     def onMessageDelivered(self, jid, messageId):
         #print 'onMessageDelivered():', jid, messageId
         self.message_status_changed_signal.emit(jid, messageId, 'delivered')
 
-    @bind('group_gotInfo')
+    @Events.bind('group_gotInfo')
     def onGroupInfo(self, groupJid, owner, subject, subjectOwner, subjectTimestamp, creationTimestamp):
         creationTimestamp = datetime.datetime.fromtimestamp(creationTimestamp).strftime('%d-%m-%Y %H:%M')
         subjectTimestamp = datetime.datetime.fromtimestamp(subjectTimestamp).strftime('%d-%m-%Y %H:%M')
-        self._out('Information on group %s: created by %s at %s, subject "%s" set by %s at %s' % (self._contacts.jid2name(groupJid), self._contacts.jid2name(owner), creationTimestamp, subject, self._contacts.jid2name(subjectOwner), subjectTimestamp), logId=groupJid)
+        self._out('Information on group %s: created by %s at %s, subject "%s" set by %s at %s' % (Contacts.instance().jid2name(groupJid), Contacts.instance().jid2name(owner), creationTimestamp, subject, Contacts.instance().jid2name(subjectOwner), subjectTimestamp), logId=groupJid)
 
-    @bind('group_createSuccess')
+    @Events.bind('group_createSuccess')
     def onGroupCreated(self, jid, groupJid):
         groupJid = '%s@%s' % (groupJid, jid)
-        self._out('New group: %s' % self._contacts.jid2name(groupJid), logId=groupJid)
+        self._out('New group: %s' % Contacts.instance().jid2name(groupJid), logId=groupJid)
 
-    @bind('group_endSuccess')
+    @Events.bind('group_endSuccess')
     def onGroupDestroyed(self, jid):
         pass #jid contains only 'g.us' ????
 
-    @bind('group_subjectReceived')
+    @Events.bind('group_subjectReceived')
     def onGroupSubjectReceived(self, messageId, groupJid, author, subject, timestamp, wantsReceipt):
         self.handleMessage(messageId, timestamp, author, groupJid, 'changed group subject to: "%s"' % subject)
         if wantsReceipt:
             self.methodsInterface.call('subject_ack', (groupJid, messageId))
 
-    @bind('group_gotParticipants')
+    @Events.bind('group_gotParticipants')
     def onGroupGotParticipants(self, groupJid, participants):
         self.handleMessage(str(time.time()), time.time(), groupJid, groupJid, 'group participants are: "%s"' % participants)
 
 
-    @bind('image_received')
+    @Events.bind('image_received')
     def onImageReceived(self, messageId, jid, timestamp, preview, url, size, receiptRequested):
         self.handleImageReceived(messageId, timestamp, jid, self._ownJid, jid, preview, url, size, receiptRequested)
 
-    @bind('group_imageReceived')
+    @Events.bind('group_imageReceived')
     def onGroupImageReceived(self, messageId, groupJid, timestamp, author, preview, url, size, receiptRequested):
         self.handleImageReceived(messageId, timestamp, author, groupJid, groupJid, preview, url, size, receiptRequested)
 
@@ -202,11 +199,11 @@ class WazappDesktop(QObject):
             self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind('video_received')
+    @Events.bind('video_received')
     def onVideoReceived(self, messageId, jid, timestamp, preview, url, size, receiptRequested):
         self.handleVideoReceived(messageId, timestamp, jid, self._ownJid, jid, preview, url, size, receiptRequested)
 
-    @bind('group_videoReceived')
+    @Events.bind('group_videoReceived')
     def onGroupVideoReceived(self, messageId, groupJid, timestamp, author, preview, url, size, receiptRequested):
         self.handleVideoReceived(messageId, timestamp, author, groupJid, groupJid, preview, url, size, receiptRequested)
 
@@ -216,11 +213,11 @@ class WazappDesktop(QObject):
             self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind('audio_received')
+    @Events.bind('audio_received')
     def onAudioReceived(self, messageId, jid, timestamp, url, size, receiptRequested):
         self.handleAudioReceived(messageId, timestamp, jid, self._ownJid, jid, url, size, receiptRequested)
 
-    @bind('group_audioReceived')
+    @Events.bind('group_audioReceived')
     def onGroupAudioReceived(self, messageId, groupJid, timestamp, author, url, size, receiptRequested):
         self.handleAudioReceived(messageId, timestamp, author, groupJid, groupJid, url, size, receiptRequested)
 
@@ -230,11 +227,11 @@ class WazappDesktop(QObject):
             self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind('location_received')
+    @Events.bind('location_received')
     def onLocationReceived(self, messageId, jid, timestamp, name, preview, latitude, longitude, receiptRequested):
         self.handleLocationReceived(messageId, timestamp, jid, self._ownJid, jid, name, preview, latitude, longitude, receiptRequested)
 
-    @bind('group_locationReceived')
+    @Events.bind('group_locationReceived')
     def onGroupLocationReceived(self, messageId, groupJid, timestamp, author, name, preview, latitude, longitude, receiptRequested):
         self.handleLocationReceived(messageId, timestamp, author, groupJid, groupJid, name, preview, latitude, longitude, receiptRequested)
 
@@ -244,11 +241,11 @@ class WazappDesktop(QObject):
             self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind('vcard_received')
+    @Events.bind('vcard_received')
     def onVCardReceived(self, messageId, jid, timestamp, name, data, receiptRequested):
         self.handleVCardReceived(messageId, timestamp, jid, self._ownJid, jid, name, data, receiptRequested)
 
-    @bind('group_vcardReceived')
+    @Events.bind('group_vcardReceived')
     def onGroupVCardReceived(self, messageId, groupJid, timestamp, author, name, data, receiptRequested):
         self.handleVCardReceived(messageId, timestamp, author, groupJid, groupJid, name, data, receiptRequested)
 
@@ -258,44 +255,44 @@ class WazappDesktop(QObject):
             self.methodsInterface.call('notification_ack', (ack, messageId))
 
 
-    @bind('notification_groupParticipantAdded')
+    @Events.bind('notification_groupParticipantAdded')
     def onGroupParticipantAdded(self, groupJid, jid, author, timestamp, messageId, receiptRequested):
         self.handleMessage(messageId, timestamp, author, groupJid, 'added group member: "%s"' % (jid))
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind('notification_groupParticipantRemoved')
+    @Events.bind('notification_groupParticipantRemoved')
     def onGroupParticipantRemoved(self, groupJid, jid, author, timestamp, messageId, receiptRequested):
         self.handleMessage(messageId, timestamp, author, groupJid, 'removed group member: "%s"' % (jid))
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind('notification_contactProfilePictureUpdated')
+    @Events.bind('notification_contactProfilePictureUpdated')
     def onContactProfilePictureUpdated(self, jid, timestamp, messageId, receiptRequested):
-        self._out('%s updated his contact picture' % self._contacts.jid2name(jid), timestamp, logId=jid)
+        self._out('%s updated his contact picture' % Contacts.instance().jid2name(jid), timestamp, logId=jid)
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (jid, messageId))
 
-    @bind('notification_groupPictureUpdated')
+    @Events.bind('notification_groupPictureUpdated')
     def onGroupPictureUpdated(self, groupJid, author, timestamp, messageId, receiptRequested):
-        self._out('%s updated the picture for group %s' % (self._contacts.jid2name(author), self._contacts.jid2name(groupJid)), timestamp, logId=groupJid)
+        self._out('%s updated the picture for group %s' % (Contacts.instance().jid2name(author), Contacts.instance().jid2name(groupJid)), timestamp, logId=groupJid)
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (groupJid, messageId))
 
-    @bind('auth_success')
+    @Events.bind('auth_success')
     def onAuthSuccess(self, username):
         self._out('Logged in as %s' % username)
         self.setOnline(True)
         self.methodsInterface.call('ready')
         self.methodsInterface.call('presence_sendAvailable')
-        self.checkPresence(self._contacts.getContacts())
+        self.checkPresence(Contacts.instance().getContacts())
 
-    @bind('auth_fail')
+    @Events.bind('auth_fail')
     def onAuthFailed(self, username, err):
         self._out('Auth Failed!')
         self.setOnline(False)
 
-    @bind('disconnected')
+    @Events.bind('disconnected')
     def onDisconnected(self, reason):
         self._out('Disconnected because %s' % reason)
         self.setOnline(False)
@@ -305,17 +302,17 @@ class WazappDesktop(QObject):
         except:
             pass
 
-    @bind('presence_available')
+    @Events.bind('presence_available')
     def onPresenceAvailable(self, jid):
-        #self._out('%s is now available' % self._contacts.jid2name(jid))
+        #self._out('%s is now available' % Contacts.instance().jid2name(jid))
         self.contact_status_changed_signal.emit(jid, True, time.time())
 
-    @bind('presence_unavailable')
+    @Events.bind('presence_unavailable')
     def onPresenceUnavailable(self, jid):
-        #self._out('%s is now unavailable' % self._contacts.jid2name(jid))
+        #self._out('%s is now unavailable' % Contacts.instance().jid2name(jid))
         self.contact_status_changed_signal.emit(jid, False, None)
 
-    @bind('presence_updated')
+    @Events.bind('presence_updated')
     def onPresenceUpdated(self, jid, lastseen):
-        #self._out('%s was last seen %s seconds ago' % (self._contacts.jid2name(jid), lastseen), logId=jid)
+        #self._out('%s was last seen %s seconds ago' % (Contacts.instance().jid2name(jid), lastseen), logId=jid)
         self.contact_status_changed_signal.emit(jid, None, time.time() - lastseen)

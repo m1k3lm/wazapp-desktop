@@ -4,19 +4,17 @@
 from PyQt4.QtCore import Qt, pyqtSlot as Slot, pyqtSignal as Signal, QSettings
 from PyQt4.QtGui import QMainWindow, QTabWidget
 
-from ChatWidget import ChatWidget
-from ContactsWidget import ContactsWidget
-
+from .ChatWidget import ChatWidget
+from .ContactsWidget import ContactsWidget
+from .Contacts import Contacts
 
 class MainWindow(QMainWindow):
     add_contact_signal = Signal(str, str)
     send_message_signal = Signal(str, unicode)
     has_unread_message_signal = Signal(bool)
 
-    def __init__(self, contacts, chatHistory):
+    def __init__(self):
         super(MainWindow, self).__init__()
-        self._contacts = contacts
-        self._chatHistory = chatHistory
         self._quit = False
         self._chatWidgets = {}
         self._unreadMessages = set()
@@ -30,14 +28,14 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._contactsWidget)
         self.add_contact_signal.connect(self._contactsWidget.addContact)
         self._contactsWidget.start_chat_signal.connect(self.startChat)
-        self._contactsWidget.import_google_contacts_signal.connect(self._contacts.importGoogleContacts)
-        self._contactsWidget.update_contact_signal.connect(self._contacts.updateContact)
-        self._contactsWidget.remove_contact_signal.connect(self._contacts.removeContact)
+        self._contactsWidget.import_google_contacts_signal.connect(Contacts.instance().importGoogleContacts)
+        self._contactsWidget.update_contact_signal.connect(Contacts.instance().updateContact)
+        self._contactsWidget.remove_contact_signal.connect(Contacts.instance().removeContact)
 
-        self._contactsWidget.contactsUpdated(self._contacts.getContacts())
-        self._contacts.contacts_updated_signal.connect(self._contactsWidget.contactsUpdated)
-        self._contacts.contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
-        self._contacts.edit_contact_signal.connect(self._contactsWidget.editContact)
+        self._contactsWidget.contactsUpdated(Contacts.instance().getContacts())
+        Contacts.instance().contacts_updated_signal.connect(self._contactsWidget.contactsUpdated)
+        Contacts.instance().contact_status_changed_signal.connect(self._contactsWidget.contactStatusChanged)
+        Contacts.instance().edit_contact_signal.connect(self._contactsWidget.editContact)
 
         self._settings = QSettings('wazapp', 'wazapp-desktop')
         for conversationId in self._settings.value('mainWindow/openConversations').toStringList():
@@ -103,7 +101,7 @@ class MainWindow(QMainWindow):
     def getChatWidget(self, conversationId):
         # if no dockWidget for this conversationId exists, create a new one
         if conversationId not in self._chatWidgets:
-            dockWidget = ChatWidget(conversationId, self._chatHistory, self._contacts)
+            dockWidget = ChatWidget(conversationId)
             dockWidget.setObjectName(conversationId)
             dockWidget.setAllowedAreas(self._chatWidgetDockArea)
 

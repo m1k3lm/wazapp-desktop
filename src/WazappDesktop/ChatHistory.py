@@ -2,10 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import codecs
-from helpers import LOG_FILE_TEMPLATE
+from .helpers import LOG_FILE_TEMPLATE
 
 class ChatHistory(object):
     dataFields = ('messageId', 'timestamp', 'sender', 'receiver', 'message')
+
+    @staticmethod
+    def instance():
+        return _instance
+
     def __init__(self):
         super(ChatHistory, self).__init__()
         self._conversations = {}
@@ -46,3 +51,5 @@ class ChatHistory(object):
         logfile.write('%s;%s;%s;%s;%s\n' % data)
         logfile.close()
         return messageId
+
+_instance = ChatHistory()

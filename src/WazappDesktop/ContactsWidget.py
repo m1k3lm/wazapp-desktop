@@ -82,7 +82,8 @@ class ContactsWidget(QWidget):
     def contactsUpdated(self, contacts):
         self.contactList.clear()
         self._items = {}
-        for conversationId, name in contacts.items():
+        for conversationId, data in contacts.items():
+            name = data.get('name', 'unnamed contact')
             self.addContact(name, conversationId)
 
     @Slot()

@@ -12,7 +12,9 @@ from PyQt4.QtGui import QDockWidget, QMenu, QIcon, QCursor
 from PyQt4.QtWebKit import QWebPage, QWebElement
 from PyQt4.uic import loadUi
 
-from helpers import getConfig
+from .helpers import getConfig
+from .Contacts import Contacts
+from .ChatHistory import ChatHistory
 
 url_pattern1 = re.compile(r"(^|[\n ])(([\w]+?://[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
 url_pattern2 = re.compile(r"(^|[\n ])(((www|ftp)\.[\w\#$%&~.\-;:=,?@\[\]+]*)(/[\w\#$%&~/.\-;:=,?@\[\]+]*)?)", re.IGNORECASE | re.DOTALL)
@@ -33,13 +35,11 @@ class ChatWidget(QDockWidget):
     edit_contact_signal = Signal(str, str)
     paragraphIdFormat = 'p%s'
 
-    def __init__(self, conversationId, chatHistory, contacts):
+    def __init__(self, conversationId):
         super(ChatWidget, self).__init__()
         self._conversationId = conversationId
-        self._chatHistory = chatHistory
-        self._contacts = contacts
-        self._windowTitle = self._contacts.jid2name(self._conversationId)
-        self._ownJid = self._contacts.phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
+        self._windowTitle = Contacts.instance().jid2name(self._conversationId)
+        self._ownJid = Contacts.instance().phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
         self._bodyElement = QWebElement()
         self._scrollTimer = QTimer()
         self._scrollTimer.setSingleShot(True)
@@ -104,8 +104,8 @@ class ChatWidget(QDockWidget):
     def showHistorySince(self, timestamp, minMessage=0, maxMessages=10000):
         if type(timestamp) in (datetime.datetime, datetime.date):
             timestamp = time.mktime(timestamp.timetuple())
-        history = self._chatHistory.get(self._conversationId)
-        timestampIndex = self._chatHistory.dataFields.index('timestamp')
+        history = ChatHistory.instance().get(self._conversationId)
+        timestampIndex = ChatHistory.instance().dataFields.index('timestamp')
         for index, data in enumerate(history['list']):
             if timestamp <= data[timestampIndex]:
                 numMessages = len(history['list']) - index
@@ -130,7 +130,7 @@ class ChatWidget(QDockWidget):
             return
         # show last messages
         if self._showNumMessages > 0:
-            for data in self._chatHistory.get(self._conversationId)['list'][-self._showNumMessages:]:
+            for data in ChatHistory.instance().get(self._conversationId)['list'][-self._showNumMessages:]:
                 messageId, timestamp, sender, receiver, message = data
                 self.show_history_message_signal.emit(self._conversationId, messageId, timestamp, sender, receiver, message, False)
             self._showNumMessages = 0
@@ -195,7 +195,6 @@ class ChatWidget(QDockWidget):
     @Slot()
     def on_scrollToBottom(self):
         bottom = self.chatView.page().mainFrame().scrollBarMaximum(Qt.Vertical)
-        print 'on_scrollToBottom():', bottom
         self.chatView.page().mainFrame().setScrollBarValue(Qt.Vertical, bottom)
 
     @Slot()
@@ -215,7 +214,6 @@ class ChatWidget(QDockWidget):
             return
         # if html page is not loaded yet, queue this message
         if self._bodyElement.isNull():
-            print 'queuing'
             self._showNumMessages += 1
             return
 
@@ -225,7 +223,7 @@ class ChatWidget(QDockWidget):
             self._lastDate = formattedDate
             self._bodyElement.appendInside('<p class="date">%s</p>' % formattedDate)
 
-        senderName = self._contacts.jid2name(senderJid)
+        senderName = Contacts.instance().jid2name(senderJid)
         senderDisplayName = senderName
 
         # set class for name element, depending if senderJid is in contacts and if its or own jid
