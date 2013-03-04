@@ -270,12 +270,14 @@ class WazappDesktop(QObject, Events):
     @Events.bind('notification_contactProfilePictureUpdated')
     def onContactProfilePictureUpdated(self, jid, timestamp, messageId, receiptRequested):
         self._out('%s updated his contact picture' % Contacts.instance().jid2name(jid), timestamp, logId=jid)
+        self.methodsInterface.call('picture_getIds', (jid,))
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (jid, messageId))
 
     @Events.bind('notification_groupPictureUpdated')
     def onGroupPictureUpdated(self, groupJid, author, timestamp, messageId, receiptRequested):
         self._out('%s updated the picture for group %s' % (Contacts.instance().jid2name(author), Contacts.instance().jid2name(groupJid)), timestamp, logId=groupJid)
+        self.methodsInterface.call('picture_getIds', (groupJid,))
         if receiptRequested:
             self.methodsInterface.call('notification_ack', (groupJid, messageId))
 

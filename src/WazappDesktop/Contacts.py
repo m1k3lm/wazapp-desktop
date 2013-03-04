@@ -8,7 +8,7 @@ import re
 from PyQt4.QtGui import QMessageBox
 from PyQt4.QtCore import QObject, pyqtSlot as Slot, pyqtSignal as Signal
 
-from .helpers import CONTACTS_FILE, getConfig, readObjectFromFile, writeObjectToFile
+from .helpers import CONTACTS_FILE, PICTURE_CACHE_PATH, getConfig, readObjectFromFile, writeObjectToFile
 
 from Yowsup.Contacts.contacts import WAContactsSyncRequest
 
@@ -16,6 +16,7 @@ class Contacts(QObject):
     contacts_updated_signal = Signal(dict)
     contact_status_changed_signal = Signal(str, dict)
     edit_contact_signal = Signal(str, str)
+    save_contacts_signal = Signal()
     userIdFormat = '%s@s.whatsapp.net'
     groupIdFormat = '%s@g.us'
 
@@ -26,6 +27,7 @@ class Contacts(QObject):
     def __init__(self):
         super(Contacts, self).__init__()
         self._contactStatus = {}
+        self.save_contacts_signal.connect(self._saveContacts)
         self._loadContacts()
         self.contacts_updated_signal.emit(self.getContacts())
 
@@ -57,7 +59,7 @@ class Contacts(QObject):
     @Slot(str)
     def removeContact(self, conversationId):
         del self._contacts[conversationId]
-        self._saveContacts()
+        self.save_contacts_signal.emit()
         self.contacts_updated_signal.emit(self.getContacts())
 
     def setContactName(self, conversationId, name):
@@ -65,31 +67,36 @@ class Contacts(QObject):
         contact['name'] = name
         self._contacts[conversationId] = contact
 
-    def setContactPicture(self, conversationId, pictureId):
+    def setContactPictureId(self, conversationId, pictureId):
         contact = self._contacts.get(conversationId, {})
         contact['pictureId'] = pictureId
         self._contacts[conversationId] = contact
+        self.save_contacts_signal.emit()
 
     def getContactPicture(self, conversationId):
         contact = self._contacts.get(conversationId, {})
-        return contact.get('pictureId', None)
+        if 'pictureId' in contact:
+            return '%s.jpeg' % os.path.join(PICTURE_CACHE_PATH, contact['pictureId'])
+        return None
 
     @Slot(str, str)
     def updateContact(self, name, phoneOrGroup):
+        phoneOrGroup = phoneOrGroup.split('@', 1)[0]
         if phoneOrGroup.count('-') == 1 and phoneOrGroup[-11] == '-':
-            phone = phoneOrGroup[:-11]
+            phoneOrGroup = phoneOrGroup.strip(' ').lstrip('+')
         else:
-            phone = phoneOrGroup
-        waPhones = self.getWAUsers([phone]).values()
-        if len(waPhones) > 0:
-            self.setContactName(self.phoneToConversationId(waPhones[0]), name)
-            self._saveContacts()
-            self.contacts_updated_signal.emit(self.getContacts())
-        else:
-            text = 'WhatsApp did not know about the phone number "%s"!\n' % (phoneOrGroup)
-            text += 'Please check that the number starts with a "+" and your country code.'
-            QMessageBox.warning(None, 'WhatsApp User Not Found', text)
-            self.edit_contact_signal.emit(name, phoneOrGroup)
+            waPhones = self.getWAUsers([phoneOrGroup]).values()
+            if len(waPhones) > 0:
+                phoneOrGroup = waPhones[0]
+            else:
+                text = 'WhatsApp did not know about the phone number "%s"!\n' % (phoneOrGroup)
+                text += 'Please check that the number starts with a "+" and your country code.'
+                QMessageBox.warning(None, 'WhatsApp User Not Found', text)
+                self.edit_contact_signal.emit(name, phoneOrGroup)
+                return
+        self.setContactName(self.phoneToConversationId(phoneOrGroup), name)
+        self.save_contacts_signal.emit()
+        self.contacts_updated_signal.emit(self.getContacts())
 
     @Slot(str, object, object)
     def contactStatusChanged(self, conversationId, available, lastSeen):
@@ -140,7 +147,7 @@ class Contacts(QObject):
             name = googleContacts[googlePhone]
             self.setContactName(self.phoneToConversationId(waPhone), name)
 
-        self._saveContacts()
+        self.save_contacts_signal.emit()
 
         self.contacts_updated_signal.emit(self.getContacts())
         QMessageBox.information(None, 'Import successful', 'Found %d WhatsApp users in your %d Google contacts.' % (len(waUsers), len(googleContacts)))

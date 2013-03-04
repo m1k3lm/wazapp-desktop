@@ -1,8 +1,9 @@
 function addMouseOverImage(element, imgSrc) {
     //debugOut('addMouseOverImage(): ' + imgSrc);
     var largeDiv = document.createElement('div');
+    largeDiv.style.backgroundColor = '#ffffff';
     largeDiv.setAttribute('class', 'mouseOver');
-    largeDiv.innerHTML = '<img src="' + imgSrc + '">';
+    largeDiv.innerHTML = '<img width="1px" src="' + imgSrc + '">';
     document.body.appendChild(largeDiv);
 
     element.largeDiv = largeDiv;
@@ -12,7 +13,7 @@ function addMouseOverImage(element, imgSrc) {
     element.addEventListener('mouseout', mouseOut, true);
 }
 
-var maxZoomFactor = 2.5;
+var maxZoomFactor = 2.0;
 function mouseMove(event) {
     var x = 0, y = 0, maxWidth = 0, maxHeight = 0, zoomFaktor = 0;
     // check which side of the cursor has more space left

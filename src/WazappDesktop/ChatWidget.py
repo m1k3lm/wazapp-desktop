@@ -34,10 +34,13 @@ class ChatWidget(QDockWidget):
     has_unread_message_signal = Signal(str, bool)
     edit_contact_signal = Signal(str, str)
     paragraphIdFormat = 'p%s'
-    paragraphFormat = '''<p id=%(paragraphId)s>
-        <span class="time">[%(formattedTime)s] </span>
-        <a href="wa:contactMenu?jid=%(senderJid)s&name=%(senderName)s" class="%(nameClass)s">%(senderDisplayName)s: </a>
-        <span class="message">%(message)s</span></p>
+    paragraphFormat = '''
+        <p id=%(paragraphId)s>
+            <span class="time">[%(formattedTime)s] </span>
+            <a href="%(senderPic)s"><img height="20px" src="%(senderPic)s"></a>
+            <a href="wa:contactMenu?jid=%(senderJid)s&name=%(senderName)s" class="%(nameClass)s">%(senderDisplayName)s: </a>
+            <span class="message">%(message)s</span>
+        </p>
     '''
 
     def __init__(self, conversationId):
@@ -45,18 +48,18 @@ class ChatWidget(QDockWidget):
         self._conversationId = conversationId
         self._windowTitle = Contacts.instance().jid2name(self._conversationId)
         self._ownJid = Contacts.instance().phoneToConversationId(getConfig('countryCode') + getConfig('phoneNumber'))
-        self._bodyElement = QWebElement()
+        self._defaultContactPicture = '/%s/im-user.png' % QDir.searchPaths('icons')[0]
+        self._chatViewUrl = QUrl('file://%s/ChatView.html' % QDir.searchPaths('html')[0])
+        self._historyTimestamp = datetime.date.today()
+
         self._scrollTimer = QTimer()
         self._scrollTimer.setSingleShot(True)
         self._scrollTimer.timeout.connect(self.on_scrollToBottom)
         self.scroll_to_bottom_signal.connect(self.on_scrollToBottom, Qt.QueuedConnection)
 
         loadUi(os.path.join(QDir.searchPaths('ui')[0], 'ChatWidget.ui'), self)
-        self.chatView.load(QUrl('file:///%s/ChatView.html' % QDir.searchPaths('html')[0]))
-
-        self.historyButton.setIcon(QIcon.fromTheme('clock'))
-
         self.setWindowTitle(self._windowTitle)
+        self.historyButton.setIcon(QIcon.fromTheme('clock'))
 
         self.visibilityChanged.connect(self.on_visibilityChanged)
         self.chatView.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
@@ -68,12 +71,19 @@ class ChatWidget(QDockWidget):
         self.show_history_num_messages_signal.connect(self.showHistoryNumMessages)
         self.has_unread_message_signal.connect(self.unreadMessage)
 
+        self.reloadChatView()
         self.showHistorySince(datetime.date.today(), minMessage=3, maxMessages=10)
+
+    def reloadChatView(self):
+        self._bodyElement = QWebElement()
+        self.chatView.load(self._chatViewUrl)
+        self.showHistorySince(self._historyTimestamp)
 
     def on_chatView_customContextMenuRequested(self, pos):
         menu = QMenu()
         results = {}
         results[menu.addAction('Dump HTML')] = self.dumpHtml
+        results[menu.addAction('Refresh')] = self.reloadChatView
         result = menu.exec_(self.chatView.mapToGlobal(pos))
         if result in results:
             results[result]()
@@ -109,6 +119,7 @@ class ChatWidget(QDockWidget):
     def showHistorySince(self, timestamp, minMessage=0, maxMessages=10000):
         if type(timestamp) in (datetime.datetime, datetime.date):
             timestamp = time.mktime(timestamp.timetuple())
+        self._historyTimestamp = timestamp
         history = ChatHistory.instance().get(self._conversationId)
         timestampIndex = ChatHistory.instance().dataFields.index('timestamp')
         for index, data in enumerate(history['list']):
@@ -233,6 +244,11 @@ class ChatWidget(QDockWidget):
         parameters['senderJid'] = senderJid
         parameters['senderName'] = Contacts.instance().jid2name(senderJid)
         parameters['senderDisplayName'] = parameters['senderName']
+
+        parameters['senderPic'] = Contacts.instance().getContactPicture(senderJid)
+        if parameters['senderPic'] is None:
+            parameters['senderPic'] = self._defaultContactPicture
+        parameters['senderPic'] = 'file://' + parameters['senderPic']
 
         # set class for name element, depending if senderJid is in contacts and if its or own jid
         if parameters['senderJid'] == parameters['senderName']:

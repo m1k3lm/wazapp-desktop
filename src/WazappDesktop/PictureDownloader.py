@@ -5,7 +5,6 @@ import os
 import shutil
 import threading
 from .Events import Events
-from .helpers import PICTURE_CACHE_PATH
 from .Contacts import Contacts
 
 class PictureDownloader(Events):
@@ -44,9 +43,9 @@ class PictureDownloader(Events):
 
     @Events.bind('contact_gotProfilePictureId')
     def onProfilePictureId(self, jid, pictureId):
-        Contacts.instance().setContactPicture(jid, pictureId)
-        picture_filename = os.path.join(PICTURE_CACHE_PATH, str(pictureId))
-        if not os.path.isfile(picture_filename):
+        Contacts.instance().setContactPictureId(jid, pictureId)
+        pictureFilename = Contacts.instance().getContactPicture(jid)
+        if not os.path.isfile(pictureFilename):
             #print 'onProfilePictureId(): queuing picture request for %s: %s' % (jid, pictureId)
             self._requestPicture(jid)
 
@@ -66,11 +65,10 @@ class PictureDownloader(Events):
     def onProfilePicture(self, jid, filename):
         self._removeRequest(jid)
         #print 'onProfilePicture(): %s %s' % (jid, filename)
-        pictureId = Contacts.instance().getContactPicture(jid)
-        if pictureId is not None:
-            picture_filename = os.path.join(PICTURE_CACHE_PATH, str(pictureId))
-            #print 'onProfilePicture(): moving pic for "%s" pic to %s' % (Contacts.instance().jid2name(jid), picture_filename)
-            shutil.move(filename, picture_filename)
+        pictureFilename = Contacts.instance().getContactPicture(jid)
+        if pictureFilename is not None:
+            #print 'onProfilePicture(): moving pic for "%s" pic to %s' % (Contacts.instance().jid2name(jid), pictureFilename)
+            shutil.move(filename, pictureFilename)
         else:
             print 'onProfilePicture(): received picture for "%s" without requesting it' % (Contacts.instance().jid2name(jid))
 
