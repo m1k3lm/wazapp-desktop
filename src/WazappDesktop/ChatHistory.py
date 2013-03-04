@@ -39,12 +39,12 @@ class ChatHistory(object):
         # if message is already in the logs and it is from my self, mark it as the answer message
         if messageId in history['dict'] and sender == receiver:
             messageId += '*'
+        message = u'<br>'.join(message.split('\n'))
         data = (messageId, timestamp, sender, receiver, message)
         # if message is already in the logs, don't show it again
         if messageId in history['dict']:
             print 'ChatHistory.add(): received duplicate message:', data
             return None
-        message = u'<br>'.join(message.split('\n'))
         history['list'].append(data)
         history['dict'][messageId] = data
         logfile = codecs.open(LOG_FILE_TEMPLATE % conversationId, 'a', 'utf8')
