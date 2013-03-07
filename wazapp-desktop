@@ -41,7 +41,7 @@ def main():
     app.timerEvent = lambda event: None
 
     if not isAccountConfigured():
-        from Gui.RegistrationDialog import RegistrationDialog
+        from WazappDesktop.RegistrationDialog import RegistrationDialog
         dialog = RegistrationDialog()
         dialog.exec_()
         dialog.close()
